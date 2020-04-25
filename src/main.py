@@ -3,19 +3,20 @@ import os
 import os.path
 import sqlite3
 import time
-from sqlite3 import OperationalError
 
-from kivy.base import runTouchApp
+import plyer
+import utils
 from kivy.clock import Clock
+
 from kivy.lang import Builder
-from kivy.properties import ObjectProperty
-from kivy.uix.image import Image
+from kivy.properties import ObjectProperty, StringProperty
+from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import Screen
 from kivy.uix.widget import Widget
 from kivymd.app import MDApp
-
-import utils
 from kivymd.uix.textfield import MDTextField
+from kivy.utils import platform
+
 
 Builder.load_string(
     """
@@ -58,7 +59,7 @@ Builder.load_string(
                 helper_text: "Vorderradhalter, Anlehnparker"
                 helper_text_mode: "on_focus"
                 padding: '12dp'
-                on_focus: if not self.focus: data.dataEvent(self)
+                on_focus: if not self.focus: data.data_event(self)
             TextField:
                 id: anzahl
                 name: "anzahl"
@@ -66,7 +67,7 @@ Builder.load_string(
                 helper_text: "Zahl"
                 helper_text_mode: "on_focus"
                 padding: '12dp'
-                on_focus: if not self.focus: data.dataEvent(self)
+                on_focus: if not self.focus: data.data_event(self)
             TextField:
                 id: zustand
                 name: "zustand"
@@ -74,7 +75,7 @@ Builder.load_string(
                 helper_text: "gut/beschädigt/unbrauchbar"
                 helper_text_mode: "on_focus"
                 padding: '12dp'
-                on_focus: if not self.focus: data.dataEvent(self)
+                on_focus: if not self.focus: data.data_event(self)
             TextField:
                 id: bemerkung
                 name: "bemerkung"
@@ -82,9 +83,11 @@ Builder.load_string(
                 helper_text: "sonstiges"
                 helper_text_mode: "on_focus"
                 padding: '12dp'
-                on_focus: if not self.focus: data.dataEvent(self)
+                on_focus: if not self.focus: data.data_event(self)
             Image:
-                on_touch_down: app.showImages()
+                id: image
+                source: "images/photo_camera-black.png"
+                on_touch_down: app.show_images(self)
                 # canvas:
                 #     Color:
                 #         rgba: 1, 0, 0, .3
@@ -156,8 +159,8 @@ Builder.load_string(
             md_bg_color: app.theme_cls.primary_color
             background_palette: 'Primary'
             elevation: 10
-            left_action_items: [['account', app.showMenu]]
-            right_action_items: [['camera', app.shoot],['delete', app.clear]]
+            left_action_items: [['account', app.show_menu]]
+            right_action_items: [['camera', app.show_camera],['delete', app.clear]]
         BoxLayout:
             orientation: "horizontal"
             size_hint_y: 0.1
@@ -183,6 +186,47 @@ Builder.load_string(
             id: sm
             Karte: 
                 name: "Karte"
+
+<Kamera>:
+    FloatLayout:
+        MDLabel:
+            id: path_label
+            text: 'Working Directory: '
+            pos_hint: {'x': 0.25, 'y': 0.8}
+            size_hint: 0.5, 0.1
+            
+        MDTextField:
+            id: filename_text
+            text: 'enter_file_name_here.jpg'
+            pos_hint: {'x': 0.25, 'y': .6}
+            size_hint: 0.5, 0.1
+            multiline: False
+        
+        MDRaisedButton:
+            text: 'Take picture from camera!'
+            pos_hint: {'x': 0.25, 'y': .3}
+            size_hint: 0.5, 0.2
+            on_press: root.do_capture()
+
+<MsgPopup>:
+    size_hint: .7, .4
+    title: "Attention"
+    
+    BoxLayout:
+        orientation: 'vertical'
+        padding: 10
+        spacing: 20
+
+        Label:
+            id: message_label
+            size_hint_y: 0.4
+            text: "Label"
+        Button:
+            text: 'Dismiss'
+            size_hint_y: 0.4
+            on_press: root.dismiss()
+            
+
     """
 )
 
@@ -198,27 +242,88 @@ class Data(Screen):
     def init(self):
         pass
 
-    def dataEvent(self, *args):
-        print("dataEvent", args)
+    def data_event(self, *args):
+        print("data_event", args)
+
+
+class MsgPopup(Popup):
+    def __init__(self, msg):
+        super().__init__()
+        self.ids.message_label.text = msg
+
+
+class Kamera(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.ids.path_label.text = utils.getDataDir()
+        self.ids.filename_text.text = time.strftime("%Y%m%d_%H%M%S") + ".jpg"
+        self.toggle = True
+
+    def do_capture(self):
+        if platform != "android":
+            popup = MsgPopup(
+                "This feature has not yet been implemented for this platform.")
+            popup.open()
+            print("1docaptcb")
+            if self.toggle:
+                app.data.ids.image.source = "c:/temp/michaelu-1.jpg"
+                self.toggle = False
+            else:
+                app.data.ids.image.source = "c:/temp/SeniorenTraining.jpg"
+                self.toggle = True
+            app.root.sm.current = "Data"
+
+            return
+        filepath = utils.getDataDir() + "/" + self.ids.filename_text.text
+        print("filepath1", filepath)
+
+        try:
+            app.camera.take_picture(filename=filepath,
+                                on_complete=self.camera_callback)
+        except NotImplementedError:
+            popup = MsgPopup(
+                "This feature has not yet been implemented for this platform.")
+            popup.open()
+
+    def camera_callback(self, filepath):
+        if(os.path.exists(filepath)):
+            # popup = MsgPopup("Picture saved!")
+            # popup.open()
+            print("filepath2", filepath)
+            self.filepath = filepath
+            Clock.schedule_once(self.change_image) # call change_image in UI thread
+            return False
+        else:
+            popup = MsgPopup("Konnte das Bild nicht abspeichern!")
+            popup.open()
+            return True
+
+    def change_image(self,*args):
+            app.data.ids.image.source = self.filepath
+            app.root.sm.current = "Data"
+
+
 
 class TextField(MDTextField):
     pass
 
+
 class Abstellanlagen(MDApp):
     def build(self):
         print("1build", os.name)
-        if os.name == "posix":
+        if platform == 'android':
             print("2build", os.name)
-            from plyer.platforms.android.gps import AndroidGPS
             print("3build", os.name)
             perms = ["android.permission.READ_EXTERNAL_STORAGE",
                      "android.permission.WRITE_EXTERNAL_STORAGE",
+                     "android.permission.CAMERA",
                      "android.permission.ACCESS_FINE_LOCATION"]
             haveperms = acquire_permissions(perms)
             print("4build", os.name)
-            from plyer.platforms.android.gps import AndroidGPS
-            self.gps = AndroidGPS()
+            self.gps = plyer.gps
             self.gps.configure(self.gps_onlocation, self.gps_onstatus)
+            import my_camera
+            self.camera = my_camera.MyAndroidCamera()
 
         print("6build", os.name)
 
@@ -233,15 +338,17 @@ class Abstellanlagen(MDApp):
         conn = xconn
         initDB(xconn)
         self.root = Page()
-        self.root.sm.add_widget(Data(name="Data"))
-        self.mapview = self.root.ids.sm.current_screen.ids.mapview
+        self.data = Data(name="Data")
+        self.root.sm.add_widget(self.data)
+        self.root.sm.add_widget(Kamera(name="Kamera"))
+        self.mapview = self.root.sm.current_screen.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = 11
         self.mapview.map_source.bounds = (11.4, 48.0, 11.8, 48.25)
         walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
         return self.root
 
-    def showMenu(self, *args):
+    def show_menu(self, *args):
         pass
 
     def senden(self, *args):
@@ -263,25 +370,43 @@ class Abstellanlagen(MDApp):
         print("onsta", kwargs)
 
     def gps_fix(self, btn):
-        #cannot get a continuous update to work, onlocation is called not more often than every 20 seconds
+        # cannot get a continuous update to work, onlocation is called not more often than every 20 seconds
         # so update GPS loc once per button press
-        if os.name != "posix":
+        if platform != 'android':
             return
         self.gps.start(minTime=10, minDistance=0)
 
-    def shoot(self, *args):
-        print("shoot", args)
+    def show_camera(self, *args):
+        self.root.sm.current = "Kamera"
+
+    def show_images(self, *args):
+        print("show_images1", args)
+        print("show_images2", args[0])
+        print("show_images3", args[0].source) #/storage/emulated/0/Android/data/de.adfc-muenchen.abstellanlagen/files/20200425_182442.jpg
+        if args[0].source == "images/photo_camera-black.png":
+            self.show_camera()
+            return
+        print("show_images4")
+        pass
+
+    def on_pause(self):
+        print("on_pause")
+        return True
+
+    def on_resume(self):
+        print("on_resume")
+        pass
 
 
 def walk(p):
+    print("walk", p)
     try:
         if os.path.isdir(p):
             for cp in sorted(os.listdir(p)):
                 walk(p + "/" + cp)
-        else:
-            print("walk", p)
     except Exception as e:
         print("walk", p, ":", e)
+
 
 def initDB(conn):
     # c = conn.cursor()
@@ -362,6 +487,5 @@ if __name__ == '__main__':
     app = Abstellanlagen()
 
     app.run()
-
 
 # runTouchApp(root)
