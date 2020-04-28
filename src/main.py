@@ -1,27 +1,29 @@
 import locale
 import os
 import os.path
-import sqlite3
-import time
 
 import plyer
-from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import ObjectProperty, ListProperty
-from kivy.uix.image import Image, AsyncImage
-from kivy.uix.popup import Popup
+from kivy.properties import ObjectProperty
+from kivy.uix.image import AsyncImage
 from kivy.uix.scatter import Scatter
 from kivy.uix.screenmanager import Screen
 from kivy.uix.widget import Widget
 from kivy.utils import platform
 from kivymd.app import MDApp
+from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.textfield import MDTextField
 
+import db
+import kamera
 import utils
+from data import Data
+from kamera import Kamera
 
 Builder.load_string(
     """
 #:import MapSource kivy_garden.mapview.MapSource
+#:import MDDropdownMenu kivymd.uix.menu.MDDropdownMenu
 
 <Toolbar@BoxLayout>:
     size_hint_y: None
@@ -150,45 +152,6 @@ Builder.load_string(
                 text: "Latitude: {}".format(mapview.lat)
 
 
-<Page>:
-    sm: sm
-    BoxLayout:
-        size: self.parent.size
-        orientation: "vertical"
-        MDToolbar:
-            id: toolbar
-            title: "Abstellanlagen"
-            md_bg_color: app.theme_cls.primary_color
-            background_palette: 'Primary'
-            elevation: 10
-            left_action_items: [['account', app.show_menu]]
-            right_action_items: [['camera', app.show_camera],['delete', app.clear]]
-        BoxLayout:
-            orientation: "horizontal"
-            size_hint_y: 0.1
-            MDRaisedButton:
-                text: "Zentrieren"
-                size_hint: 1/4,1
-                on_release: app.center(48.13724404, 11.57617109)
-            MDRaisedButton:
-                text: "Karte"
-                size_hint: 1/4,1
-                on_release: sm.current = "Karte"
-            MDRaisedButton:
-                text: "Daten"
-                size_hint: 1/4,1
-                on_release: sm.current = "Data"
-            MDRaisedButton:
-                text: "GPS fix"
-                size_hint: 1/4,1
-                on_release: app.gps_fix(self)
-        ScreenManager:
-            pos: self.pos
-            size_hint_y: 0.9
-            id: sm
-            Karte: 
-                name: "Karte"
-
 <Kamera>:
     FloatLayout:
         MDLabel:
@@ -249,10 +212,51 @@ Builder.load_string(
                 #     pos: self.pos
                 #     size: self.size
 
-    """
+<MDMenuItem>:
+    on_release: app.change_variable(self.text)
+
+<Page>:
+    sm: sm
+    toolbar: toolbar
+    BoxLayout:
+        size: self.parent.size
+        orientation: "vertical"
+        MDToolbar:
+            id: toolbar
+            title: "Abstellanlagen"
+            md_bg_color: app.theme_cls.primary_color
+            background_palette: 'Primary'
+            elevation: 10
+            left_action_items: [['account', app.show_menu]]
+            right_action_items: [['camera', app.show_camera],['delete', app.clear],['dots-vertical', app.show_menu2]]
+        BoxLayout:
+            orientation: "horizontal"
+            size_hint_y: 0.1
+            MDRaisedButton:
+                text: "Zentrieren"
+                size_hint: 1/4,1
+                on_release: app.center(48.13724404, 11.57617109)
+            MDRaisedButton:
+                text: "Karte"
+                size_hint: 1/4,1
+                on_release: sm.current = "Karte"
+            MDRaisedButton:
+                text: "Daten"
+                size_hint: 1/4,1
+                on_release: sm.current = "Data"
+            MDRaisedButton:
+                text: "GPS fix"
+                size_hint: 1/4,1
+                on_release: app.gps_fix(self)
+        ScreenManager:
+            pos: self.pos
+            size_hint_y: 0.9
+            id: sm
+            Karte: 
+                name: "Karte"
+   """
 )
 
-photo_image_path = "/photo_camera-black.png"
 
 class Page(Widget):
     sm = ObjectProperty(None)
@@ -260,25 +264,6 @@ class Page(Widget):
 
 class Karte(Screen):
     pass
-
-
-class Data(Screen):
-    image_list = ListProperty()
-
-    def __init__(self, *args, **kwargs):
-        impath = utils.getDataDir() + "/images"
-        imgs = sorted(os.listdir(impath))
-        #self.image_list = [ impath + "/" + p for p in imgs ]
-        self.image_list = []
-        if len(self.image_list) == 0:
-            self.image_list = [ impath + photo_image_path ]
-        super().__init__(*args, **kwargs)
-
-    def init(self):
-        pass
-
-    def data_event(self, *args):
-        print("data_event", args)
 
 
 class Images(Screen):
@@ -289,17 +274,16 @@ class Images(Screen):
         x = app
         y = app.root.sm.get_screen("Data")
 
-        image_list = app.data.image_list
-        l = len(image_list)
-        if l == 1:
-            if image_list[0].endswith(photo_image_path):
-                app.show_camera()
-            else:
-                self.show_single_image(image_list[0])
+        # image_list must always contain photo_image_path, otherwise image_list[0] in <Images> fails
+        copy_list = [im for im in app.data.image_list if not im.endswith(utils.photo_image_path)]
+        l = len(copy_list)
+        if l == 0:
+            app.show_camera()
             return
-        for i, cp in enumerate(image_list):
-            if cp.endswith(photo_image_path):
-                continue
+        elif l == 1:
+            self.show_single_image(copy_list[0])
+            return
+        for i, cp in enumerate(copy_list):
             im = AsyncImage(source=cp, on_touch_down=self.show_single_image)
             im.size = app.root.sm.size
             im.number = i
@@ -319,62 +303,6 @@ class Images(Screen):
         self.bl.add_widget(sc)
 
 
-class SingleImage(Screen):
-    pass
-
-class MsgPopup(Popup):
-    def __init__(self, msg):
-        super().__init__()
-        self.ids.message_label.text = msg
-
-
-class Kamera(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.ids.path_label.text = utils.getDataDir() + "/images"
-        self.ids.filename_text.text = time.strftime("%Y%m%d_%H%M%S") + ".jpg"
-        self.toggle = True
-
-    def do_capture(self):
-        if platform != "android":
-            popup = MsgPopup(
-                "This feature has not yet been implemented for this platform.")
-            popup.open()
-            print("1docaptcb")
-            if self.toggle:
-                app.data.image_list.insert(0, "c:/temp/michaelu-1.jpg")
-                self.toggle = False
-            else:
-                app.data.image_list.insert(0,"c:/temp/SeniorenTraining.jpg")
-                self.toggle = True
-            app.root.sm.current = "Data"
-            return
-
-        filepath = utils.getDataDir() + "/images" + self.ids.filename_text.text
-        try:
-            app.camera.take_picture(filename=filepath, on_complete=self.camera_callback)
-        except NotImplementedError:
-            popup = MsgPopup(
-                "This feature has not yet been implemented for this platform.")
-            popup.open()
-
-    def camera_callback(self, filepath):
-        if (os.path.exists(filepath)):
-            # popup = MsgPopup("Picture saved!")
-            # popup.open()
-            self.filepath = filepath
-            Clock.schedule_once(self.change_image)  # call change_image in UI thread
-            return False
-        else:
-            popup = MsgPopup("Konnte das Bild nicht abspeichern!")
-            popup.open()
-            return True
-
-    def change_image(self, *args):
-        app.data.image_list.insert(0, self.filepath)
-        app.root.sm.current = "Data"
-
-
 class TextField(MDTextField):
     pass
 
@@ -389,7 +317,7 @@ class Abstellanlagen(MDApp):
                      "android.permission.WRITE_EXTERNAL_STORAGE",
                      "android.permission.CAMERA",
                      "android.permission.ACCESS_FINE_LOCATION"]
-            haveperms = acquire_permissions(perms)
+            haveperms = utils.acquire_permissions(perms)
             print("4build", os.name)
             self.gps = plyer.gps
             self.gps.configure(self.gps_onlocation, self.gps_onstatus)
@@ -398,27 +326,31 @@ class Abstellanlagen(MDApp):
 
         print("6build", os.name)
 
+        menu_labels = [
+            {"viewclass": "MDMenuItem",
+             "text": "Label1"},
+            {"viewclass": "MDMenuItem",
+             "text": "Label2"},
+        ]
+
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
-        db = dataDir + "/Abstellanlagen.db"
-
-        print("db path", db)
-        xconn = sqlite3.connect(db)
-        app.conn = xconn
-        global conn
-        conn = xconn
-        initDB(xconn)
+        db.initDB()
         self.root = Page()
         self.data = Data(name="Data")
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.data)
+        kamera.app = app
         self.root.sm.add_widget(Kamera(name="Kamera"))
         self.root.sm.add_widget(self.images)
         self.mapview = self.root.sm.current_screen.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = 11
         self.mapview.map_source.bounds = (11.4, 48.0, 11.8, 48.25)
-        walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
+        utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
+
+        self.mddropdownmenu = MDDropdownMenu(caller=self.root.toolbar, items=menu_labels, width_mult=3)
+
         return self.root
 
     def show_menu(self, *args):
@@ -428,7 +360,27 @@ class Abstellanlagen(MDApp):
         pass
 
     def clear(self, *args):
-        pass
+        cur_screen = app.root.sm.current_screen
+        if cur_screen.name == "Karte":
+            return
+        if cur_screen.name == "Data":
+            app.data.clear()
+            return
+        if cur_screen.name == "Images":
+            if len(cur_screen.bl.children) == 0:
+                return
+            if len(cur_screen.bl.children) > 1:
+                popup = utils.MsgPopup(
+                    "Bitte ein Bild auswählen")
+                popup.open()
+                return
+            sc = cur_screen.bl.children[0]  # Screen/BoxLayout/Scatter
+            src = sc.children[0].source  # Scatter/AsyncImage
+            cur_screen.bl.remove_widget(sc)
+            self.data.image_list.remove(src)
+            if platform == "android":
+                os.remove(src)
+            self.root.sm.current = "Data"
 
     def center(self, lat, lon):
         self.mapview.center_on(lat, lon)
@@ -465,89 +417,13 @@ class Abstellanlagen(MDApp):
         pass
 
     def xxxx(self, *args):
-        print("image", args[0].number)
-        print("numbers", [sc.children[0].number for sc in args[0].parent.parent.children])
-        return False
+        pass
 
+    def change_variable(self, value):
+        print("value=", value)
 
-def walk(p):
-    print("walk", p)
-    try:
-        if os.path.isdir(p):
-            for cp in sorted(os.listdir(p)):
-                walk(p + "/" + cp)
-    except Exception as e:
-        print("walk", p, ":", e)
-
-
-def initDB(conn):
-    # c = conn.cursor()
-    # try:
-    #     with conn:
-    #         c.execute("""CREATE TABLE arbeitsblatt(
-    #         tag TEXT,
-    #         fnr INTEGER,
-    #         einsatzstelle TEXT,
-    #         beginn TEXT,
-    #         ende TEXT,
-    #         fahrtzeit TEXT,
-    #         mvv_euro TEXT,
-    #         kh INTEGER)
-    #         """)
-    # except OperationalError:
-    #     pass
-    # try:
-    #     with conn:
-    #         c.execute("""CREATE TABLE eigenschaften(
-    #         vorname TEXT,
-    #         nachname TEXT,
-    #         wochenstunden TEXT,
-    #         emailadresse TEXT)
-    #         """)
-    # except OperationalError:
-    #     pass
-    # try:
-    #     with conn:
-    #         c.execute("""delete from arbeitsblatt where einsatzstelle="" and beginn="" and ende="" """)
-    # except OperationalError:
-    pass
-
-
-def acquire_permissions(permissions, timeout=30):
-    from plyer.platforms.android import activity
-
-    def allgranted(permissions):
-        print("permallg1", permissions)
-        for perm in permissions:
-            print("permallg2", perm)
-            r = activity.checkCurrentPermission(perm)
-            print("permallg3", perm, r)
-            if r == 0:
-                return False
-        print("permallg4")
-        return True
-
-    print("1perm", permissions)
-    haveperms = allgranted(permissions)
-    print("2perm", haveperms)
-    if haveperms:
-        # we have the permission and are ready
-        return True
-
-    # invoke the permissions dialog
-    activity.requestPermissions(permissions)
-    print("3perm")
-
-    # now poll for the permission (UGLY but we cant use android Activity's onRequestPermissionsResult)
-    t0 = time.time()
-    while time.time() - t0 < timeout and not haveperms:
-        print("4perm")
-        # in the poll loop we could add a short sleep for performance issues?
-        haveperms = allgranted(permissions)
-        time.sleep(1)
-
-    print("5perm", haveperms)
-    return haveperms
+    def show_menu2(self, caller):
+        self.mddropdownmenu.open()
 
 
 if __name__ == '__main__':
