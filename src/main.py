@@ -5,18 +5,19 @@ import sqlite3
 import time
 
 import plyer
-import utils
 from kivy.clock import Clock
-
 from kivy.lang import Builder
-from kivy.properties import ObjectProperty, StringProperty
+from kivy.properties import ObjectProperty, ListProperty
+from kivy.uix.image import Image, AsyncImage
 from kivy.uix.popup import Popup
+from kivy.uix.scatter import Scatter
 from kivy.uix.screenmanager import Screen
 from kivy.uix.widget import Widget
+from kivy.utils import platform
 from kivymd.app import MDApp
 from kivymd.uix.textfield import MDTextField
-from kivy.utils import platform
 
+import utils
 
 Builder.load_string(
     """
@@ -45,6 +46,7 @@ Builder.load_string(
 
 <Data>:
     id: data
+    image_list: self.image_list
     on_kv_post: self.init()
     ScrollView:
         BoxLayout:
@@ -86,7 +88,7 @@ Builder.load_string(
                 on_focus: if not self.focus: data.data_event(self)
             Image:
                 id: image
-                source: "images/photo_camera-black.png"
+                source: data.image_list[0]
                 on_touch_down: app.show_images(self)
                 # canvas:
                 #     Color:
@@ -226,10 +228,31 @@ Builder.load_string(
             size_hint_y: 0.4
             on_press: root.dismiss()
             
+<Images>:
+    id: images
+    bl: bl
+    sv: sv
+    on_kv_post: self.init()
+
+    ScrollView:
+        id: sv
+        BoxLayout:
+            size_hint: None, None
+            width: self.minimum_width
+            height: self.minimum_height
+            id:bl
+            spacing: 10
+            #canvas:
+                # Color:
+                #     rgba: 1, 0, 0, .3
+                # Rectangle:
+                #     pos: self.pos
+                #     size: self.size
 
     """
 )
 
+photo_image_path = "/photo_camera-black.png"
 
 class Page(Widget):
     sm = ObjectProperty(None)
@@ -238,13 +261,66 @@ class Page(Widget):
 class Karte(Screen):
     pass
 
+
 class Data(Screen):
+    image_list = ListProperty()
+
+    def __init__(self, *args, **kwargs):
+        impath = utils.getDataDir() + "/images"
+        imgs = sorted(os.listdir(impath))
+        #self.image_list = [ impath + "/" + p for p in imgs ]
+        self.image_list = []
+        if len(self.image_list) == 0:
+            self.image_list = [ impath + photo_image_path ]
+        super().__init__(*args, **kwargs)
+
     def init(self):
         pass
 
     def data_event(self, *args):
         print("data_event", args)
 
+
+class Images(Screen):
+    def init(self):
+        pass
+
+    def show_images(self):
+        x = app
+        y = app.root.sm.get_screen("Data")
+
+        image_list = app.data.image_list
+        l = len(image_list)
+        if l == 1:
+            if image_list[0].endswith(photo_image_path):
+                app.show_camera()
+            else:
+                self.show_single_image(image_list[0])
+            return
+        for i, cp in enumerate(image_list):
+            if cp.endswith(photo_image_path):
+                continue
+            im = AsyncImage(source=cp, on_touch_down=self.show_single_image)
+            im.size = app.root.sm.size
+            im.number = i
+            # without auto_bring_to_front=False the boxlayout children are reshuffled
+            sc = Scatter(do_rotation=False, do_translation=False, do_scale=False, size=im.size,
+                         auto_bring_to_front=False, size_hint=(None, None))
+            sc.add_widget(im)
+            self.bl.add_widget(sc)
+
+    def show_single_image(self, *args):
+        src = args[0].source if isinstance(args[0], AsyncImage) else args[0]
+        im = AsyncImage(source=src)
+        im.size = app.root.sm.size
+        sc = Scatter(do_rotation=False, size=im.size, size_hint=(None, None))
+        sc.add_widget(im)
+        self.bl.clear_widgets()
+        self.bl.add_widget(sc)
+
+
+class SingleImage(Screen):
+    pass
 
 class MsgPopup(Popup):
     def __init__(self, msg):
@@ -255,7 +331,7 @@ class MsgPopup(Popup):
 class Kamera(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.ids.path_label.text = utils.getDataDir()
+        self.ids.path_label.text = utils.getDataDir() + "/images"
         self.ids.filename_text.text = time.strftime("%Y%m%d_%H%M%S") + ".jpg"
         self.toggle = True
 
@@ -266,42 +342,37 @@ class Kamera(Screen):
             popup.open()
             print("1docaptcb")
             if self.toggle:
-                app.data.ids.image.source = "c:/temp/michaelu-1.jpg"
+                app.data.image_list.insert(0, "c:/temp/michaelu-1.jpg")
                 self.toggle = False
             else:
-                app.data.ids.image.source = "c:/temp/SeniorenTraining.jpg"
+                app.data.image_list.insert(0,"c:/temp/SeniorenTraining.jpg")
                 self.toggle = True
             app.root.sm.current = "Data"
-
             return
-        filepath = utils.getDataDir() + "/" + self.ids.filename_text.text
-        print("filepath1", filepath)
 
+        filepath = utils.getDataDir() + "/images" + self.ids.filename_text.text
         try:
-            app.camera.take_picture(filename=filepath,
-                                on_complete=self.camera_callback)
+            app.camera.take_picture(filename=filepath, on_complete=self.camera_callback)
         except NotImplementedError:
             popup = MsgPopup(
                 "This feature has not yet been implemented for this platform.")
             popup.open()
 
     def camera_callback(self, filepath):
-        if(os.path.exists(filepath)):
+        if (os.path.exists(filepath)):
             # popup = MsgPopup("Picture saved!")
             # popup.open()
-            print("filepath2", filepath)
             self.filepath = filepath
-            Clock.schedule_once(self.change_image) # call change_image in UI thread
+            Clock.schedule_once(self.change_image)  # call change_image in UI thread
             return False
         else:
             popup = MsgPopup("Konnte das Bild nicht abspeichern!")
             popup.open()
             return True
 
-    def change_image(self,*args):
-            app.data.ids.image.source = self.filepath
-            app.root.sm.current = "Data"
-
+    def change_image(self, *args):
+        app.data.image_list.insert(0, self.filepath)
+        app.root.sm.current = "Data"
 
 
 class TextField(MDTextField):
@@ -328,7 +399,7 @@ class Abstellanlagen(MDApp):
         print("6build", os.name)
 
         dataDir = utils.getDataDir()
-        os.makedirs(dataDir, exist_ok=True)
+        os.makedirs(dataDir + "/images", exist_ok=True)
         db = dataDir + "/Abstellanlagen.db"
 
         print("db path", db)
@@ -339,8 +410,10 @@ class Abstellanlagen(MDApp):
         initDB(xconn)
         self.root = Page()
         self.data = Data(name="Data")
+        self.images = Images(name="Images")
         self.root.sm.add_widget(self.data)
         self.root.sm.add_widget(Kamera(name="Kamera"))
+        self.root.sm.add_widget(self.images)
         self.mapview = self.root.sm.current_screen.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = 11
@@ -380,14 +453,8 @@ class Abstellanlagen(MDApp):
         self.root.sm.current = "Kamera"
 
     def show_images(self, *args):
-        print("show_images1", args)
-        print("show_images2", args[0])
-        print("show_images3", args[0].source) #/storage/emulated/0/Android/data/de.adfc-muenchen.abstellanlagen/files/20200425_182442.jpg
-        if args[0].source == "images/photo_camera-black.png":
-            self.show_camera()
-            return
-        print("show_images4")
-        pass
+        self.root.sm.current = "Images"
+        self.images.show_images()
 
     def on_pause(self):
         print("on_pause")
@@ -396,6 +463,11 @@ class Abstellanlagen(MDApp):
     def on_resume(self):
         print("on_resume")
         pass
+
+    def xxxx(self, *args):
+        print("image", args[0].number)
+        print("numbers", [sc.children[0].number for sc in args[0].parent.parent.children])
+        return False
 
 
 def walk(p):
