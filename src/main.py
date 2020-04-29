@@ -3,6 +3,7 @@ import os
 import os.path
 
 import plyer
+from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
 from kivy.uix.image import AsyncImage
@@ -11,7 +12,9 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.widget import Widget
 from kivy.utils import platform
 from kivymd.app import MDApp
-from kivymd.uix.menu import MDDropdownMenu
+from kivymd.uix.button import MDFlatButton
+from kivymd.uix.dialog import MDDialog
+from kivymd.uix.list import OneLineAvatarIconListItem
 from kivymd.uix.textfield import MDTextField
 
 import db
@@ -23,7 +26,6 @@ from kamera import Kamera
 Builder.load_string(
     """
 #:import MapSource kivy_garden.mapview.MapSource
-#:import MDDropdownMenu kivymd.uix.menu.MDDropdownMenu
 
 <Toolbar@BoxLayout>:
     size_hint_y: None
@@ -187,7 +189,7 @@ Builder.load_string(
             size_hint_y: 0.4
             text: "Label"
         Button:
-            text: 'Dismiss'
+            text: 'Weiter'
             size_hint_y: 0.4
             on_press: root.dismiss()
             
@@ -214,6 +216,15 @@ Builder.load_string(
 
 <MDMenuItem>:
     on_release: app.change_variable(self.text)
+    
+<ItemConfirm>
+    on_release: app.set_icon(check, self)
+
+    CheckboxRightWidget:
+        id: check
+        group: "check"
+        on_release: app.set_icon(check, root) # call set_icon for click on checkbox and label
+
 
 <Page>:
     sm: sm
@@ -227,8 +238,8 @@ Builder.load_string(
             md_bg_color: app.theme_cls.primary_color
             background_palette: 'Primary'
             elevation: 10
-            left_action_items: [['account', app.show_menu]]
-            right_action_items: [['camera', app.show_camera],['delete', app.clear],['dots-vertical', app.show_menu2]]
+            left_action_items: [['account', app.show_account]]
+            right_action_items: [['camera', app.show_camera],['delete', app.clear],['dots-vertical', app.show_menu]]
         BoxLayout:
             orientation: "horizontal"
             size_hint_y: 0.1
@@ -307,6 +318,13 @@ class TextField(MDTextField):
     pass
 
 
+class ItemConfirm(OneLineAvatarIconListItem):
+    divider = None
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
 class Abstellanlagen(MDApp):
     def build(self):
         print("1build", os.name)
@@ -348,12 +366,11 @@ class Abstellanlagen(MDApp):
         self.mapview.map_source.min_zoom = 11
         self.mapview.map_source.bounds = (11.4, 48.0, 11.8, 48.25)
         utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
-
-        self.mddropdownmenu = MDDropdownMenu(caller=self.root.toolbar, items=menu_labels, width_mult=3)
+        self.selected_base = "Abstellanlagen"
 
         return self.root
 
-    def show_menu(self, *args):
+    def show_account(self, *args):
         pass
 
     def senden(self, *args):
@@ -370,9 +387,14 @@ class Abstellanlagen(MDApp):
             if len(cur_screen.bl.children) == 0:
                 return
             if len(cur_screen.bl.children) > 1:
-                popup = utils.MsgPopup(
-                    "Bitte ein Bild auswählen")
-                popup.open()
+                # popup = utils.MsgPopup("Bitte ein Bild auswählen")
+                # popup.open()
+                self.dialog = MDDialog(size_hint=(.8, .4), title="Auswahl", text="Bitte ein Bild auswählen",
+                               buttons=[
+                                   MDFlatButton(
+                                       text="Weiter", text_color=self.theme_cls.primary_color, on_press=self.dismiss_dialog
+                                   )])
+                self.dialog.open()
                 return
             sc = cur_screen.bl.children[0]  # Screen/BoxLayout/Scatter
             src = sc.children[0].source  # Scatter/AsyncImage
@@ -381,6 +403,9 @@ class Abstellanlagen(MDApp):
             if platform == "android":
                 os.remove(src)
             self.root.sm.current = "Data"
+
+    def dismiss_dialog(self, *args):
+        self.dialog.dismiss()
 
     def center(self, lat, lon):
         self.mapview.center_on(lat, lon)
@@ -416,14 +441,28 @@ class Abstellanlagen(MDApp):
         print("on_resume")
         pass
 
-    def xxxx(self, *args):
-        pass
-
     def change_variable(self, value):
         print("value=", value)
 
-    def show_menu2(self, caller):
-        self.mddropdownmenu.open()
+    def show_menu(self, *args):
+        basen = ["Abstellanlagen", "Mögliche Abstellplätze", "Alte Bäume", "Parkbanken"]
+        items = [ItemConfirm(text=base) for base in basen]
+        x = basen.index(self.selected_base)
+        for i,item in enumerate(items):
+            items[i].ids.check.active = i == x
+        buttons = [MDFlatButton(text="OK", text_color = self.theme_cls.primary_color, on_press = self.dismiss_dialog)]
+        self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
+                               text="Bitte Datenbasis auswählen",
+                               items=items, buttons=buttons)
+        self.dialog.open()
+
+    def set_icon(self, instance_check, x):
+        self.selected_base = x.text
+        instance_check.active = True
+        check_list = instance_check.get_widgets(instance_check.group)
+        for check in check_list:
+            if check != instance_check:
+                check.active = False
 
 
 if __name__ == '__main__':
