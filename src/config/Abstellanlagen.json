@@ -1,0 +1,35 @@
+{
+  "name": "Abstellanlagen",
+  "db_tabellenname": "",
+  "spreadsheet_id": "",
+  "sheet_name": "",
+  "gps": {
+    "min_lat": 48.0,
+    "max_lat": 48.25,
+    "min_lon": 11.4,
+    "max_lon": 11.8,
+    "nachkommastellen": 7
+  },
+  "felder": [
+    {
+      "name": "anlagentyp",
+      "hint_text": "Anlagentyp",
+      "helper_text": "Vorderradhalter, Anlehnparker"
+    },
+    {
+      "name": "anzahl",
+      "hint_text": "Anzahl der Ständer",
+      "helper_text": "Zahl"
+    },
+    {
+      "name": "zustand",
+      "hint_text": "Zustand",
+      "helper_text": "gut/beschädigt/unbrauchbar"
+    },
+    {
+      "name": "bemerkung",
+      "hint_text": "Bemerkung",
+      "helper_text": "sonstiges"
+    }
+  ]
+}

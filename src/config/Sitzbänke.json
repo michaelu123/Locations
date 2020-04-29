@@ -1,0 +1,35 @@
+{
+  "name": "Sitzbänke",
+  "db_tabellenname": "",
+  "spreadsheet_id": "",
+  "sheet_name": "",
+  "gps": {
+    "min_lat": 48.1,
+    "max_lat": 48.2,
+    "min_lon": 11.5,
+    "max_lon": 11.6,
+    "nachkommastellen": 7
+  },
+  "felder": [
+    {
+      "name": "material",
+      "hint_text": "Material",
+      "helper_text": "Holz, Eisem, Plastik, Beton"
+    },
+    {
+      "name": "plätze",
+      "hint_text": "Anzahl der Sitzplätze",
+      "helper_text": "Zahl"
+    },
+    {
+      "name": "zustand",
+      "hint_text": "Zustand",
+      "helper_text": "gut/beschädigt/unbrauchbar"
+    },
+    {
+      "name": "bemerkung",
+      "hint_text": "Bemerkung",
+      "helper_text": "sonstiges"
+    }
+  ]
+}

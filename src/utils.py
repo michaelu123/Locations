@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 import time
@@ -17,6 +18,16 @@ class MsgPopup(Popup):
 def printEx(msg, e):
     print(msg, e)
     traceback.print_exc(file=sys.stdout)
+
+
+def printExToString(msg, e, tracebk=False):
+    output = io.StringIO()
+    print(msg, ":", e, file=output)
+    if tracebk:
+        traceback.print_exc(file=output)
+    s = output.getvalue()
+    output.close()
+    return s
 
 
 def getDataDir():

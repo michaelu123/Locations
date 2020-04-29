@@ -3,7 +3,6 @@ import os
 import os.path
 
 import plyer
-from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
 from kivy.uix.image import AsyncImage
@@ -17,6 +16,7 @@ from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import OneLineAvatarIconListItem
 from kivymd.uix.textfield import MDTextField
 
+import config
 import db
 import kamera
 import utils
@@ -54,42 +54,43 @@ Builder.load_string(
     on_kv_post: self.init()
     ScrollView:
         BoxLayout:
+            id:bl
             size_hint_y: None
             height: dp(800)
             orientation: 'vertical'
             #spacing: 20
-            TextField:
-                id: typ
-                name: "anlagentyp"
-                hint_text: "Anlagentyp"
-                helper_text: "Vorderradhalter, Anlehnparker"
-                helper_text_mode: "on_focus"
-                padding: '12dp'
-                on_focus: if not self.focus: data.data_event(self)
-            TextField:
-                id: anzahl
-                name: "anzahl"
-                hint_text: "Anzahl der Ständer"
-                helper_text: "Zahl"
-                helper_text_mode: "on_focus"
-                padding: '12dp'
-                on_focus: if not self.focus: data.data_event(self)
-            TextField:
-                id: zustand
-                name: "zustand"
-                hint_text: "Zustand"
-                helper_text: "gut/beschädigt/unbrauchbar"
-                helper_text_mode: "on_focus"
-                padding: '12dp'
-                on_focus: if not self.focus: data.data_event(self)
-            TextField:
-                id: bemerkung
-                name: "bemerkung"
-                hint_text: "Bemerkung"
-                helper_text: "sonstiges"
-                helper_text_mode: "on_focus"
-                padding: '12dp'
-                on_focus: if not self.focus: data.data_event(self)
+            # TextField:
+            #     id: typ
+            #     name: "anlagentyp"
+            #     hint_text: "Anlagentyp"
+            #     helper_text: "Vorderradhalter, Anlehnparker"
+            #     helper_text_mode: "on_focus"
+            #     padding: '12dp'
+            #     on_focus: if not self.focus: data.data_event(self)
+            # TextField:
+            #     id: anzahl
+            #     name: "anzahl"
+            #     hint_text: "Anzahl der Ständer"
+            #     helper_text: "Zahl"
+            #     helper_text_mode: "on_focus"
+            #     padding: '12dp'
+            #     on_focus: if not self.focus: data.data_event(self)
+            # TextField:
+            #     id: zustand
+            #     name: "zustand"
+            #     hint_text: "Zustand"
+            #     helper_text: "gut/beschädigt/unbrauchbar"
+            #     helper_text_mode: "on_focus"
+            #     padding: '12dp'
+            #     on_focus: if not self.focus: data.data_event(self)
+            # TextField:
+            #     id: bemerkung
+            #     name: "bemerkung"
+            #     hint_text: "Bemerkung"
+            #     helper_text: "sonstiges"
+            #     helper_text_mode: "on_focus"
+            #     padding: '12dp'
+            #     on_focus: if not self.focus: data.data_event(self)
             Image:
                 id: image
                 source: data.image_list[0]
@@ -327,34 +328,25 @@ class ItemConfirm(OneLineAvatarIconListItem):
 
 class Abstellanlagen(MDApp):
     def build(self):
-        print("1build", os.name)
         if platform == 'android':
-            print("2build", os.name)
-            print("3build", os.name)
             perms = ["android.permission.READ_EXTERNAL_STORAGE",
                      "android.permission.WRITE_EXTERNAL_STORAGE",
                      "android.permission.CAMERA",
                      "android.permission.ACCESS_FINE_LOCATION"]
             haveperms = utils.acquire_permissions(perms)
-            print("4build", os.name)
             self.gps = plyer.gps
             self.gps.configure(self.gps_onlocation, self.gps_onstatus)
             import my_camera
             self.camera = my_camera.MyAndroidCamera()
 
-        print("6build", os.name)
-
-        menu_labels = [
-            {"viewclass": "MDMenuItem",
-             "text": "Label1"},
-            {"viewclass": "MDMenuItem",
-             "text": "Label2"},
-        ]
-
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
         db.initDB()
+        self.config = config.Config()
+        self.selected_base = "Abstellanlagen" #TODO: Abfragen??
+
         self.root = Page()
+        self.root.toolbar.title = self.selected_base
         self.data = Data(name="Data")
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.data)
@@ -364,9 +356,9 @@ class Abstellanlagen(MDApp):
         self.mapview = self.root.sm.current_screen.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = 11
-        self.mapview.map_source.bounds = (11.4, 48.0, 11.8, 48.25)
-        utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
-        self.selected_base = "Abstellanlagen"
+        self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
+
+        #utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
 
         return self.root
 
@@ -390,10 +382,11 @@ class Abstellanlagen(MDApp):
                 # popup = utils.MsgPopup("Bitte ein Bild auswählen")
                 # popup.open()
                 self.dialog = MDDialog(size_hint=(.8, .4), title="Auswahl", text="Bitte ein Bild auswählen",
-                               buttons=[
-                                   MDFlatButton(
-                                       text="Weiter", text_color=self.theme_cls.primary_color, on_press=self.dismiss_dialog
-                                   )])
+                                       buttons=[
+                                           MDFlatButton(
+                                               text="Weiter", text_color=self.theme_cls.primary_color,
+                                               on_press=self.dismiss_dialog
+                                           )])
                 self.dialog.open()
                 return
             sc = cur_screen.bl.children[0]  # Screen/BoxLayout/Scatter
@@ -445,12 +438,12 @@ class Abstellanlagen(MDApp):
         print("value=", value)
 
     def show_menu(self, *args):
-        basen = ["Abstellanlagen", "Mögliche Abstellplätze", "Alte Bäume", "Parkbanken"]
+        basen = list(self.config.getNames())
         items = [ItemConfirm(text=base) for base in basen]
         x = basen.index(self.selected_base)
-        for i,item in enumerate(items):
+        for i, item in enumerate(items):
             items[i].ids.check.active = i == x
-        buttons = [MDFlatButton(text="OK", text_color = self.theme_cls.primary_color, on_press = self.dismiss_dialog)]
+        buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=self.dismiss_dialog)]
         self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
                                text="Bitte Datenbasis auswählen",
                                items=items, buttons=buttons)
