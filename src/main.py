@@ -48,62 +48,6 @@ Builder.load_string(
             pos: self.pos
             size: self.size
 
-<Data>:
-    id: data
-    image_list: self.image_list
-    on_kv_post: self.init()
-    ScrollView:
-        BoxLayout:
-            id:bl
-            size_hint_y: None
-            height: dp(800)
-            orientation: 'vertical'
-            #spacing: 20
-            # TextField:
-            #     id: typ
-            #     name: "anlagentyp"
-            #     hint_text: "Anlagentyp"
-            #     helper_text: "Vorderradhalter, Anlehnparker"
-            #     helper_text_mode: "on_focus"
-            #     padding: '12dp'
-            #     on_focus: if not self.focus: data.data_event(self)
-            # TextField:
-            #     id: anzahl
-            #     name: "anzahl"
-            #     hint_text: "Anzahl der Ständer"
-            #     helper_text: "Zahl"
-            #     helper_text_mode: "on_focus"
-            #     padding: '12dp'
-            #     on_focus: if not self.focus: data.data_event(self)
-            # TextField:
-            #     id: zustand
-            #     name: "zustand"
-            #     hint_text: "Zustand"
-            #     helper_text: "gut/beschädigt/unbrauchbar"
-            #     helper_text_mode: "on_focus"
-            #     padding: '12dp'
-            #     on_focus: if not self.focus: data.data_event(self)
-            # TextField:
-            #     id: bemerkung
-            #     name: "bemerkung"
-            #     hint_text: "Bemerkung"
-            #     helper_text: "sonstiges"
-            #     helper_text_mode: "on_focus"
-            #     padding: '12dp'
-            #     on_focus: if not self.focus: data.data_event(self)
-            Image:
-                id: image
-                source: data.image_list[0]
-                on_touch_down: app.show_images(self)
-                # canvas:
-                #     Color:
-                #         rgba: 1, 0, 0, .3
-                #     Rectangle:
-                #         pos: self.pos
-                #         size: self.size
-
-
-
 <Karte>:
     mv: mapview
     
@@ -229,6 +173,7 @@ Builder.load_string(
 
 <Page>:
     sm: sm
+    datenbtn: datenbtn
     toolbar: toolbar
     BoxLayout:
         size: self.parent.size
@@ -253,6 +198,7 @@ Builder.load_string(
                 size_hint: 1/4,1
                 on_release: sm.current = "Karte"
             MDRaisedButton:
+                id: datenbtn
                 text: "Daten"
                 size_hint: 1/4,1
                 on_release: sm.current = "Data"
@@ -340,7 +286,8 @@ class Abstellanlagen(MDApp):
 
         self.root = Page()
         self.root.toolbar.title = self.selected_base
-        self.data = Data(name="Data", baseJS=baseJS)
+        self.root.datenbtn.text = self.selected_base
+        self.data = Data(app, baseJS, name="Data")
         self.root.sm.add_widget(self.data)
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.images)

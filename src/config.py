@@ -12,6 +12,8 @@ class Config():
             try:
                 with open(f, "r",encoding="UTF-8") as jsonFile:
                     confJS = json.load(jsonFile)
+                    if confJS.get("name") is None:
+                        continue
                     self.configs[confJS.get("name")] = confJS
             except Exception as e:
                 s = utils.printExToString("Fehler beim Lesen der Datei " + f, e)
