@@ -30,5 +30,14 @@ class Config():
     def getNames(self):
         return self.configs.keys()
 
+    def getMinZoom(self, name):
+        gps = self.configs[name].get("gps")
+        return gps.get("min_zoom")
+
+    def getBase(self, name):
+        return self.configs[name]
+
 if __name__ == '__main__':
     x = Config()
+
+

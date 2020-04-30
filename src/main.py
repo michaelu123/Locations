@@ -283,9 +283,6 @@ class Images(Screen):
         pass
 
     def show_images(self):
-        x = app
-        y = app.root.sm.get_screen("Data")
-
         # image_list must always contain photo_image_path, otherwise image_list[0] in <Images> fails
         copy_list = [im for im in app.data.image_list if not im.endswith(utils.photo_image_path)]
         l = len(copy_list)
@@ -315,10 +312,6 @@ class Images(Screen):
         self.bl.add_widget(sc)
 
 
-class TextField(MDTextField):
-    pass
-
-
 class ItemConfirm(OneLineAvatarIconListItem):
     divider = None
 
@@ -341,22 +334,23 @@ class Abstellanlagen(MDApp):
 
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
-        db.initDB()
         self.config = config.Config()
         self.selected_base = "Abstellanlagen" #TODO: Abfragen??
+        baseJS = self.config.getBase(self.selected_base)
 
         self.root = Page()
         self.root.toolbar.title = self.selected_base
-        self.data = Data(name="Data")
-        self.images = Images(name="Images")
+        self.data = Data(name="Data", baseJS=baseJS)
         self.root.sm.add_widget(self.data)
+        self.images = Images(name="Images")
+        self.root.sm.add_widget(self.images)
         kamera.app = app
         self.root.sm.add_widget(Kamera(name="Kamera"))
-        self.root.sm.add_widget(self.images)
         self.mapview = self.root.sm.current_screen.ids.mapview
         self.mapview.map_source = "osm-de"
-        self.mapview.map_source.min_zoom = 11
+        self.mapview.map_source.min_zoom = self.config.getMinZoom(self.selected_base)
         self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
+        db.initDB(baseJS)
 
         #utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
 

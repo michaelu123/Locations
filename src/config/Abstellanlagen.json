@@ -1,6 +1,7 @@
 {
   "name": "Abstellanlagen",
-  "db_tabellenname": "",
+  "db_name": "Abstellanlagen.db",
+  "db_tabellenname": "abstellanlagen",
   "spreadsheet_id": "",
   "sheet_name": "",
   "gps": {
@@ -8,28 +9,33 @@
     "max_lat": 48.25,
     "min_lon": 11.4,
     "max_lon": 11.8,
-    "nachkommastellen": 7
+    "nachkommastellen": 4,
+    "min_zoom": 11
   },
   "felder": [
     {
       "name": "anlagentyp",
       "hint_text": "Anlagentyp",
-      "helper_text": "Vorderradhalter, Anlehnparker"
+      "helper_text": "Vorderradhalter, Anlehnparker",
+      "type": "string"
     },
     {
       "name": "anzahl",
       "hint_text": "Anzahl der Ständer",
-      "helper_text": "Zahl"
+      "helper_text": "Zahl",
+      "type": "int"
     },
     {
       "name": "zustand",
       "hint_text": "Zustand",
-      "helper_text": "gut/beschädigt/unbrauchbar"
+      "helper_text": "gut/beschädigt/unbrauchbar",
+      "type": "string"
     },
     {
       "name": "bemerkung",
       "hint_text": "Bemerkung",
-      "helper_text": "sonstiges"
+      "helper_text": "sonstiges",
+      "type": "string"
     }
   ]
 }
