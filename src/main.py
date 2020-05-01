@@ -10,6 +10,7 @@ from kivy.uix.scatter import Scatter
 from kivy.uix.screenmanager import Screen
 from kivy.uix.widget import Widget
 from kivy.utils import platform
+from kivy_garden.mapview import MapMarker
 from kivymd.app import MDApp
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
@@ -54,11 +55,8 @@ Builder.load_string(
     RelativeLayout:
         MapView:
             id: mapview
-            lat: 48.13724404
-            lon: 11.57617109
             zoom: 15
             snap_to_zoom: 1
-            
             canvas:
                 Color: 
                     rgba:1,0,0,0.5
@@ -68,36 +66,18 @@ Builder.load_string(
                 Line:
                     width:1
                     points: [0, self.height/2, self.width, self.height/2]
-    
             #size_hint: 0.5, 0.5
             #pos_hint: {"x": .25, "y": .25}
-    
             #on_map_relocated: mapview.sync_to(self)
             #on_map_relocated: mapview.sync_to(self)
-    
-            # MapMarker:
-            #     lat: 50.6394
-            #     lon: 3.057
-            # 
-            # MapMarker
-            #     lat: -33.867
-            #     lon: 151.206
-            MapMarker: # Fischbrunnen
-                #size: 40,40
-                lat: 48.13724404
-                lon: 11.57617109
-    
-            MapMarker: # HBF
-                #size: 20,20
-                lat: 48.14025519
-                lon: 11.55963407
-    
         Toolbar:
             MDLabel:
                 text: "Longitude: {}".format(mapview.lon)
             MDLabel:
                 text: "Latitude: {}".format(mapview.lat)
 
+<MyMapMarker>:
+    on_press: app.clickMarker(self)
 
 <Kamera>:
     FloatLayout:
@@ -192,7 +172,7 @@ Builder.load_string(
             MDRaisedButton:
                 text: "Zentrieren"
                 size_hint: 1/4,1
-                on_release: app.center(48.13724404, 11.57617109)
+                on_release: app.center()
             MDRaisedButton:
                 text: "Karte"
                 size_hint: 1/4,1
@@ -201,7 +181,7 @@ Builder.load_string(
                 id: datenbtn
                 text: "Daten"
                 size_hint: 1/4,1
-                on_release: sm.current = "Data"
+                on_release: app.show_data()
             MDRaisedButton:
                 text: "GPS fix"
                 size_hint: 1/4,1
@@ -215,6 +195,8 @@ Builder.load_string(
    """
 )
 
+class MyMapMarker(MapMarker):
+    pass
 
 class Page(Widget):
     sm = ObjectProperty(None)
@@ -282,22 +264,31 @@ class Abstellanlagen(MDApp):
         os.makedirs(dataDir + "/images", exist_ok=True)
         self.config = config.Config()
         self.selected_base = "Abstellanlagen" #TODO: Abfragen??
-        baseJS = self.config.getBase(self.selected_base)
+        self.baseJS = self.config.getBase(self.selected_base)
 
+        dbinst = db.DB.instance()
+        dbinst.initDB(self.baseJS, app)
         self.root = Page()
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
-        self.data = Data(app, baseJS, name="Data")
-        self.root.sm.add_widget(self.data)
-        self.images = Images(name="Images")
-        self.root.sm.add_widget(self.images)
-        kamera.app = app
-        self.root.sm.add_widget(Kamera(name="Kamera"))
+
         self.mapview = self.root.sm.current_screen.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = self.config.getMinZoom(self.selected_base)
         self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
-        db.initDB(baseJS)
+        markers = dbinst.getMarkerLocs()
+        for marker in markers:
+            self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
+        self.center()
+
+        self.data = Data(app, self.baseJS, name="Data")
+        self.data.setData()
+        self.root.sm.add_widget(self.data)
+
+        self.images = Images(name="Images")
+        self.root.sm.add_widget(self.images)
+        kamera.app = app
+        self.root.sm.add_widget(Kamera(name="Kamera"))
 
         #utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
 
@@ -336,12 +327,16 @@ class Abstellanlagen(MDApp):
             self.data.image_list.remove(src)
             if platform == "android":
                 os.remove(src)
+            self.data.setData()
             self.root.sm.current = "Data"
 
     def dismiss_dialog(self, *args):
         self.dialog.dismiss()
 
-    def center(self, lat, lon):
+    def center(self):
+        gps = self.baseJS.get("gps")
+        lat = gps.get("center_lat")
+        lon = gps.get("center_lon")
         self.mapview.center_on(lat, lon)
 
     def gps_onlocation(self, **kwargs):
@@ -366,6 +361,11 @@ class Abstellanlagen(MDApp):
     def show_images(self, *args):
         self.root.sm.current = "Images"
         self.images.show_images()
+
+    def show_data(self):
+        self.data.setData()
+        self.mapview.center_on(self.data.lat, self.data.lon)
+        self.root.sm.current = "Data"
 
     def on_pause(self):
         print("on_pause")
@@ -397,6 +397,13 @@ class Abstellanlagen(MDApp):
         for check in check_list:
             if check != instance_check:
                 check.active = False
+
+    def add_marker(self, lat, lon):
+        self.mapview.add_marker(MyMapMarker(lat=lat, lon=lon))
+
+    def clickMarker(self, marker):
+        self.mapview.center_on(marker.lat, marker.lon)
+        self.show_data()
 
 
 if __name__ == '__main__':

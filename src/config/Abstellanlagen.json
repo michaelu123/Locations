@@ -9,6 +9,8 @@
     "max_lat": 48.25,
     "min_lon": 11.4,
     "max_lon": 11.8,
+    "center_lat": 48.13724404,
+    "center_lon": 11.57617109,
     "nachkommastellen": 4,
     "min_zoom": 11
   },

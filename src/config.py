@@ -27,7 +27,8 @@ class Config():
 
     def getGPSArea(self, name):
         gps = self.configs[name].get("gps")
-        return (gps.get("min_lon"), gps.get("min_lat"), gps.get("max_lon"), gps.get("max_lat"))  # (11.4, 48.0, 11.8, 48.25) = München
+        # (11.4, 48.0, 11.8, 48.25) = München
+        return (gps.get("min_lon"), gps.get("min_lat"), gps.get("max_lon"), gps.get("max_lat"))
 
     def getNames(self):
         return self.configs.keys()
@@ -38,8 +39,3 @@ class Config():
 
     def getBase(self, name):
         return self.configs[name]
-
-if __name__ == '__main__':
-    x = Config()
-
-
