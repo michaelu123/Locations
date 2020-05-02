@@ -6,7 +6,7 @@ import traceback
 
 from kivy.uix.popup import Popup
 
-photo_image_path = "/photo_camera-black.png"
+photo_image_path = "photo_camera-black.png"
 
 
 class MsgPopup(Popup):

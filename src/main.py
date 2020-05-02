@@ -18,7 +18,6 @@ from kivymd.uix.list import OneLineAvatarIconListItem
 
 import config
 import db
-import kamera
 import utils
 from data import Data
 from kamera import Kamera
@@ -108,27 +107,6 @@ Builder.load_string(
 <MyMapMarker>:
     on_press: app.clickMarker(self)
 
-<Kamera>:
-    FloatLayout:
-        MDLabel:
-            id: path_label
-            text: 'Working Directory: '
-            pos_hint: {'x': 0.25, 'y': 0.8}
-            size_hint: 0.5, 0.1
-
-        MDTextField:
-            id: filename_text
-            text: 'enter_file_name_here.jpg'
-            pos_hint: {'x': 0.25, 'y': .6}
-            size_hint: 0.5, 0.1
-            multiline: False
-        
-        MDRaisedButton:
-            text: 'Ein Bild mit Kamera aufnehmen!'
-            pos_hint: {'x': 0.25, 'y': .3}
-            size_hint: 0.5, 0.2
-            on_press: root.do_capture()
-
 <MsgPopup>:
     size_hint: .7, .4
     title: "Attention"
@@ -161,19 +139,40 @@ Builder.load_string(
             height: self.minimum_height
             id:bl
             spacing: 10
-            #canvas:
-                # Color:
-                #     rgba: 1, 0, 0, .3
-                # Rectangle:
-                #     pos: self.pos
-                #     size: self.size
+            canvas.before:
+                Color:
+                    rgba: 1, 0, 0, .2
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
+
+<Single>:
+    id: single
+    im: im
+
+    ScrollView:
+        id: sv
+        Scatter:
+            size_hint: None, None
+            rotation: False
+            size: app.root.sm.size
+            AsyncImage:
+                id: im
+                size: app.root.sm.size
+                canvas.before:
+                    Color:
+                        rgba: 0, 1, 0, .2
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
+
+
 
 <MDMenuItem>:
     on_release: app.change_variable(self.text)
     
 <ItemConfirm>
     on_release: app.set_icon(check, self)
-
     CheckboxRightWidget:
         id: check
         group: "check"
@@ -194,7 +193,7 @@ Builder.load_string(
             background_palette: 'Primary'
             elevation: 10
             left_action_items: [['account', app.show_account]]
-            right_action_items: [['camera', app.show_camera],['delete', app.clear],['dots-vertical', app.show_menu]]
+            right_action_items: [['camera', app.do_capture],['delete', app.clear],['dots-vertical', app.show_menu]]
         BoxLayout:
             orientation: "horizontal"
             size_hint_y: 0.1
@@ -249,6 +248,10 @@ class Karte(Screen):
     pass
 
 
+class Single(Screen):
+    pass
+
+
 class Images(Screen):
     def init(self):
         pass
@@ -258,7 +261,7 @@ class Images(Screen):
         copy_list = [im for im in app.data.image_list if not im.endswith(utils.photo_image_path)]
         l = len(copy_list)
         if l == 0:
-            app.show_camera()
+            app.do_capture()
             return
         elif l == 1:
             self.show_single_image(copy_list[0])
@@ -275,12 +278,8 @@ class Images(Screen):
 
     def show_single_image(self, *args):
         src = args[0].source if isinstance(args[0], AsyncImage) else args[0]
-        im = AsyncImage(source=src)
-        im.size = app.root.sm.size
-        sc = Scatter(do_rotation=False, size=im.size, size_hint=(None, None))
-        sc.add_widget(im)
-        self.bl.clear_widgets()
-        self.bl.add_widget(sc)
+        app.single.ids.im.source = src
+        app.root.sm.current = "Single"
 
 
 class ItemConfirm(OneLineAvatarIconListItem):
@@ -325,19 +324,19 @@ class Abstellanlagen(MDApp):
         self.center()
 
         self.data = Data(app, self.baseJS, name="Data")
-        self.data.setData()
         self.root.sm.add_widget(self.data)
 
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.images)
-        kamera.app = app
-        self.root.sm.add_widget(Kamera(name="Kamera"))
+        self.kamera = Kamera(app)
 
         self.account = Account(name="Account")
         self.root.sm.add_widget(self.account)
 
-        # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
+        self.single = Single(name="Single")
+        self.root.sm.add_widget(self.single)
 
+        # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
         return self.root
 
     def show_account(self, *args):
@@ -357,8 +356,6 @@ class Abstellanlagen(MDApp):
             if len(cur_screen.bl.children) == 0:
                 return
             if len(cur_screen.bl.children) > 1:
-                # popup = utils.MsgPopup("Bitte ein Bild auswählen")
-                # popup.open()
                 self.dialog = MDDialog(size_hint=(.8, .4), title="Auswahl", text="Bitte ein Bild auswählen",
                                        buttons=[
                                            MDFlatButton(
@@ -400,9 +397,6 @@ class Abstellanlagen(MDApp):
         if platform != 'android':
             return
         self.gps.start(minTime=10, minDistance=0)
-
-    def show_camera(self, *args):
-        self.root.sm.current = "Kamera"
 
     def show_images(self, *args):
         self.root.sm.current = "Images"
@@ -451,6 +445,9 @@ class Abstellanlagen(MDApp):
         self.mapview.center_on(marker.lat, marker.lon)
         self.show_data()
 
+    def do_capture(self, *args):
+        self.kamera.do_capture()
+
 
 if __name__ == '__main__':
     try:
@@ -461,5 +458,3 @@ if __name__ == '__main__':
     app = Abstellanlagen()
 
     app.run()
-
-# runTouchApp(root)

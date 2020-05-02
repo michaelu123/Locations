@@ -27,8 +27,14 @@ Builder.load_string(
             #spacing: 10
             Image:
                 id: image
-                source: data.image_list[0]
+                source: root.image_list[0]
                 on_touch_down: root.img_touch_down(args)
+                canvas:
+                    Color:
+                        rgba: 0, 0, 0, .2
+                    Rectangle:
+                        pos: self.pos
+                        size: self.size
 """
 )
 
@@ -39,7 +45,7 @@ class TextField(MDTextField):
         super().__init__(**kwargs)
 
     def data_event(self, *args):
-        db.DB.instance().update_data(self.feldname, self.text, self.data.lat, self.data.lon)
+        self.db.update_data(self.feldname, self.text, self.data.lat, self.data.lon)
 
 
 class Data(Screen):
@@ -49,8 +55,9 @@ class Data(Screen):
         self.fieldsJS = baseJS.get("felder")
         self.app = app
         self.fields = {}
-        self.impath = utils.getDataDir() + "/images"
+        self.impath = utils.getDataDir() + "/images/"
         self.image_list = [self.impath + utils.photo_image_path]
+        self.db = db.DB.instance()
         super().__init__(**kwargs)
 
     def init(self):
@@ -67,16 +74,18 @@ class Data(Screen):
             self.ids.bl.add_widget(tf, index=1)
 
     def setData(self):
+        # get images for lat/lon
         mv = self.app.mapview
         self.lat, self.lon = mv.lat, mv.lon
-        imgs = db.DB.instance().getimages(self.lat, self.lon)
-        imgs.extend(os.listdir(self.impath))
-        self.image_list.extend([self.impath + "/" + p for p in sorted(imgs)])
-        self.image_list = self.image_list[0:2]
-        # self.image_list = self.image_list[0:1]
-        #self.image_list = []
-        self.image_list.append(self.impath + utils.photo_image_path)
-        values = db.DB.instance().getdata(self.lat, self.lon)
+        imgs = self.db.getimages(self.lat, self.lon)
+        imgs.append(utils.photo_image_path)
+        self.image_list = [self.impath + p for p in sorted(imgs)]
+
+        if not os.path.exists(self.image_list[0]):
+            raise Exception("???")
+
+        # get data for lat/lon
+        values = self.db.getdata(self.lat, self.lon)
         for name in self.fields.keys():
             field = self.fields[name]
             field.text = str(values[name]) if values is not None else ""
@@ -93,4 +102,7 @@ class Data(Screen):
         if args[0].collide_point(args[1].pos[0], args[1].pos[1]):
             self.app.show_images(self, args)
 
+    def addImage(self, filename, filepath):
+        self.db.insert_image(filename, self.lat, self.lon)
+        self.image_list.insert(0, filepath)
 
