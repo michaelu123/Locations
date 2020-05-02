@@ -19,12 +19,13 @@ class DB():
     def initDB(self, baseJS, app):
         self.baseJS = baseJS
         self.app = app
+        self.tabellenname = baseJS.get("db_tabellenname")
         db = utils.getDataDir() + "/" + baseJS.get("db_name")
 
         print("db path", db)
         self.conn = sqlite3.connect(db)
 
-        fields = ["benutzer TEXT", "datum TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING"]
+        fields = ["creator TEXT", "created TEXT", "modified TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING"]
         for feld in baseJS.get("felder"):
             fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
         fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT FAIL")
@@ -36,10 +37,18 @@ class DB():
         except sqlite3.OperationalError:
             pass
 
-        self.tabellenname = baseJS.get("db_tabellenname")
-        fields = ["benutzer TEXT", "datum TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
+        fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
                   "image_path STRING"]
         stmt = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
+        c = self.conn.cursor()
+        try:
+            with self.conn:
+                c.execute(stmt)
+        except sqlite3.OperationalError:
+            pass
+
+        fields = ["vorname TEXT", "nachname TEXT", "aliasname TEXT", "emailadresse TEXT"]
+        stmt = "CREATE TABLE IF NOT EXISTS  account(" + ", ".join(fields) + ")"
         c = self.conn.cursor()
         try:
             with self.conn:
@@ -77,15 +86,16 @@ class DB():
         stellen = self.baseJS.get("gps").get("nachkommastellen")
         lat_round = str(round(lat, stellen))
         lon_round = str(round(lon, stellen))
+        now = time.strftime("%Y%m%d_%H%M%S")
         try:
             with self.conn:
                 c = self.conn.cursor()
                 r1 = c.execute("UPDATE " + self.tabellenname + "_data set "
+                               + "modified = ?, "
                                + name + " = ? where lat_round = ? and lon_round = ?",
-                               (text, lat_round, lon_round))
+                               (now, text, lat_round, lon_round))
                 if r1.rowcount == 0:  # row did not yet exist
-                    now = time.strftime("%Y%m%d_%H%M%S")
-                    vals = {"benutzer": "MUH", "datum": now, "lat": lat, "lon": lon, "lat_round":
+                    vals = {"creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon, "lat_round":
                         lat_round, "lon_round": lon_round}
                     for feld in self.baseJS.get("felder"):
                         vals[feld.get("name")] = nullval[feld.get("type")]
@@ -105,4 +115,33 @@ class DB():
             c.execute("SELECT lat, lon from " + self.tabellenname + "_data")
             vals = c.fetchall()
             return vals
+
+    def get_account(self):
+        with self.conn:
+            c = self.conn.cursor()
+            c.execute("SELECT * from account")
+            vals = c.fetchone()
+            if vals is None:
+                return { "vorname": "", "nachname": "", "aliasname": "", "emailadresse": ""}
+            cols = [t[0] for t in c.description]
+            r = dict(zip(cols, vals))
+            self.aliasname = r["aliasname"]
+            return r
+
+    def update_account(self, name, text):
+        try:
+            with self.conn:
+                c = self.conn.cursor()
+                r1 = c.execute("UPDATE account set " + name + " = ?", (text,))
+                if r1.rowcount == 0:  # row did not yet exist
+                    vals = {"vorname": "", "nachname": "", "aliasname": "", "emailadresse": ""}
+                    vals[name] = text
+                    colnames = [":" + k for k in vals.keys()]
+                    c.execute(
+                        "INSERT INTO account VALUES(" + ",".join(colnames) + ")",
+                        vals)
+            if name == "aliasname":
+                self.aliasname = text
+        except Exception as e:
+            utils.printEx("update_account:", e)
 

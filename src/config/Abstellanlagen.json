@@ -16,6 +16,12 @@
   },
   "felder": [
     {
+      "name": "ort",
+      "hint_text": "Ort",
+      "helper_text": "Platz, Straße, Haltestelle",
+      "type": "string"
+    },
+    {
       "name": "anlagentyp",
       "hint_text": "Anlagentyp",
       "helper_text": "Vorderradhalter, Anlehnparker",
@@ -23,8 +29,14 @@
     },
     {
       "name": "anzahl",
-      "hint_text": "Anzahl der Ständer",
-      "helper_text": "Zahl",
+      "hint_text": "Ständer",
+      "helper_text": "Anzahl an Ständern",
+      "type": "int"
+    },
+    {
+      "name": "schrott",
+      "hint_text": "Schrottfahrräder",
+      "helper_text": "Anzahl an Schrottfahrrädern",
       "type": "int"
     },
     {
@@ -36,7 +48,7 @@
     {
       "name": "bemerkung",
       "hint_text": "Bemerkung",
-      "helper_text": "sonstiges",
+      "helper_text": "Sonstiges",
       "type": "string"
     }
   ]

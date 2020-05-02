@@ -33,12 +33,13 @@ Builder.load_string(
 )
 
 class TextField(MDTextField):
-    def __init__(self, data, **kwargs):
+    def __init__(self, data, name, **kwargs):
+        self.feldname = name
         self.data = data
         super().__init__(**kwargs)
 
     def data_event(self, *args):
-        db.DB.instance().update_data(self.name, self.text, self.data.lat, self.data.lon)
+        db.DB.instance().update_data(self.feldname, self.text, self.data.lat, self.data.lon)
 
 
 class Data(Screen):
@@ -55,14 +56,14 @@ class Data(Screen):
     def init(self):
         for fieldJS in self.fieldsJS:
             # tf=TextField(hint_text="xxx", ..) does not work!?
-            tf = TextField(self)
+            name = fieldJS.get("name")
+            tf = TextField(self, name)
             tf.hint_text=fieldJS.get("hint_text")
             tf.helper_text=fieldJS.get("helper_text")
             tf.text=""
             tf.helper_text_mode="on_focus"
             tf.padding="12dp"
-            tf.name = fieldJS.get("name")
-            self.fields[tf.name] = tf
+            self.fields[name] = tf
             self.ids.bl.add_widget(tf, index=1)
 
     def setData(self):

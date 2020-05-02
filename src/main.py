@@ -15,7 +15,6 @@ from kivymd.app import MDApp
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import OneLineAvatarIconListItem
-from kivymd.uix.textfield import MDTextField
 
 import config
 import db
@@ -27,6 +26,36 @@ from kamera import Kamera
 Builder.load_string(
     """
 #:import MapSource kivy_garden.mapview.MapSource
+
+<Account>:
+    on_kv_post: self.init()
+    id: account
+    GridLayout:
+        cols: 1
+        spacing: 20
+        padding: 30
+        MDTextField:
+            id: vorname
+            name: "vorname"
+            hint_text: "Vorname"
+            on_focus: if not self.focus: account.accountEvent(self)
+        MDTextField:
+            id: nachname
+            name: "nachname"
+            hint_text: "Nachname"
+            on_focus: if not self.focus: account.accountEvent(self)
+        MDTextField:
+            id: aliasname
+            name: "aliasname"
+            hint_text: "aliasname"
+            helper_text: "Aliasname"
+            helper_text_mode: "on_focus"
+            on_focus: if not self.focus: account.accountEvent(self)
+        MDTextField:
+            id: emailadresse
+            name: "emailadresse"
+            hint_text: "Email-Adresse"
+            on_focus: if not self.focus: account.accountEvent(self)
 
 <Toolbar@BoxLayout>:
     size_hint_y: None
@@ -86,7 +115,7 @@ Builder.load_string(
             text: 'Working Directory: '
             pos_hint: {'x': 0.25, 'y': 0.8}
             size_hint: 0.5, 0.1
-            
+
         MDTextField:
             id: filename_text
             text: 'enter_file_name_here.jpg'
@@ -95,7 +124,7 @@ Builder.load_string(
             multiline: False
         
         MDRaisedButton:
-            text: 'Take picture from camera!'
+            text: 'Ein Bild mit Kamera aufnehmen!'
             pos_hint: {'x': 0.25, 'y': .3}
             size_hint: 0.5, 0.2
             on_press: root.do_capture()
@@ -179,7 +208,7 @@ Builder.load_string(
                 on_release: sm.current = "Karte"
             MDRaisedButton:
                 id: datenbtn
-                text: "Daten"
+                text: "Eigenschaften" if sm.current == "Account" else "Daten"
                 size_hint: 1/4,1
                 on_release: app.show_data()
             MDRaisedButton:
@@ -195,8 +224,22 @@ Builder.load_string(
    """
 )
 
+
+class Account(Screen):
+    def accountEvent(self, x):
+        app.dbinst.update_account(x.name, x.text)
+        pass
+
+    def init(self):
+        acc = app.dbinst.get_account()
+        self.ids.vorname.text = acc["vorname"]
+        self.ids.nachname.text = acc["nachname"]
+        self.ids.aliasname.text = acc["aliasname"]
+        self.ids.emailadresse.text = acc["emailadresse"]
+
 class MyMapMarker(MapMarker):
     pass
+
 
 class Page(Widget):
     sm = ObjectProperty(None)
@@ -263,11 +306,11 @@ class Abstellanlagen(MDApp):
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
         self.config = config.Config()
-        self.selected_base = "Abstellanlagen" #TODO: Abfragen??
+        self.selected_base = "Abstellanlagen"  # TODO: Abfragen??
         self.baseJS = self.config.getBase(self.selected_base)
 
-        dbinst = db.DB.instance()
-        dbinst.initDB(self.baseJS, app)
+        self.dbinst = db.DB.instance()
+        self.dbinst.initDB(self.baseJS, app)
         self.root = Page()
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
@@ -276,7 +319,7 @@ class Abstellanlagen(MDApp):
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = self.config.getMinZoom(self.selected_base)
         self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
-        markers = dbinst.getMarkerLocs()
+        markers = self.dbinst.getMarkerLocs()
         for marker in markers:
             self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
         self.center()
@@ -290,12 +333,15 @@ class Abstellanlagen(MDApp):
         kamera.app = app
         self.root.sm.add_widget(Kamera(name="Kamera"))
 
-        #utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
+        self.account = Account(name="Account")
+        self.root.sm.add_widget(self.account)
+
+        # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
 
         return self.root
 
     def show_account(self, *args):
-        pass
+        self.root.sm.current = "Account"
 
     def senden(self, *args):
         pass
