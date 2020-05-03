@@ -3,14 +3,12 @@ import os
 from kivy.lang import Builder
 from kivy.properties import ListProperty
 from kivy.uix.screenmanager import Screen
-from kivy.uix.textinput import TextInput
 from kivymd.uix.textfield import MDTextField
 
 import db
 import utils
 
-Builder.load_string(
-"""
+Builder.load_string("""
 <TextField>:
     on_focus: if not self.focus: self.data_event()
     
@@ -38,6 +36,7 @@ Builder.load_string(
 """
 )
 
+
 class TextField(MDTextField):
     def __init__(self, data, name, **kwargs):
         self.feldname = name
@@ -45,17 +44,18 @@ class TextField(MDTextField):
         super().__init__(**kwargs)
 
     def data_event(self, *args):
-        self.db.update_data(self.feldname, self.text, self.data.lat, self.data.lon)
+        self.data.db.update_data(self.feldname, self.text, self.data.lat, self.data.lon)
 
 
 class Data(Screen):
     image_list = ListProperty()
 
-    def __init__(self, app, baseJS, **kwargs):
-        self.fieldsJS = baseJS.get("felder")
+    def __init__(self, app, **kwargs):
         self.app = app
+        self.fieldsJS = self.app.baseJS.get("felder")
         self.fields = {}
         self.impath = utils.getDataDir() + "/images/"
+
         self.image_list = [self.impath + utils.photo_image_path]
         self.db = db.DB.instance()
         super().__init__(**kwargs)
@@ -65,32 +65,44 @@ class Data(Screen):
             # tf=TextField(hint_text="xxx", ..) does not work!?
             name = fieldJS.get("name")
             tf = TextField(self, name)
-            tf.hint_text=fieldJS.get("hint_text")
-            tf.helper_text=fieldJS.get("helper_text")
-            tf.text=""
-            tf.helper_text_mode="on_focus"
-            tf.padding="12dp"
+            tf.hint_text = fieldJS.get("hint_text")
+            tf.helper_text = fieldJS.get("helper_text")
+            tf.text = ""
+            tf.helper_text_mode = "on_focus"
+            tf.padding = "12dp"
             self.fields[name] = tf
             self.ids.bl.add_widget(tf, index=1)
 
     def setData(self):
+        print("1setData")
         # get images for lat/lon
         mv = self.app.mapview
         self.lat, self.lon = mv.lat, mv.lon
-        imgs = self.db.getimages(self.lat, self.lon)
+        imgs = list(set(self.db.get_images(self.lat, self.lon)))
+        # photo_image must be the last or the only one
         imgs.append(utils.photo_image_path)
-        self.image_list = [self.impath + p for p in sorted(imgs)]
+        imlist = [self.impath + p for p in imgs]
+        print("image_list", imlist)
 
-        if not os.path.exists(self.image_list[0]):
-            raise Exception("???")
+        imlist2 = []
+        for p in imlist:
+            if os.path.exists(p):
+                imlist2.append(p)
+            else:
+                print("cannot access", p)
+                # raise Exception("cannot access " + p)
+        self.image_list = imlist2
+        print("2setData", imlist2)
 
         # get data for lat/lon
-        values = self.db.getdata(self.lat, self.lon)
+        values = self.db.get_data(self.lat, self.lon)
         for name in self.fields.keys():
             field = self.fields[name]
             field.text = str(values[name]) if values is not None else ""
+        print("3setData")
 
     def clear(self, *args):
+        self.db.delete_data(self.lat, self.lon)
         for name in self.fields.keys():
             field = self.fields[name]
             field.text = ""
@@ -103,6 +115,6 @@ class Data(Screen):
             self.app.show_images(self, args)
 
     def addImage(self, filename, filepath):
-        self.db.insert_image(filename, self.lat, self.lon)
+        mv = self.app.mapview
+        self.db.insert_image(filename, mv.lat, mv.lon)
         self.image_list.insert(0, filepath)
-

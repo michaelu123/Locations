@@ -3,6 +3,7 @@ import os
 import os.path
 
 import plyer
+from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
 from kivy.uix.image import AsyncImage
@@ -46,8 +47,8 @@ Builder.load_string(
         MDTextField:
             id: aliasname
             name: "aliasname"
-            hint_text: "aliasname"
-            helper_text: "Aliasname"
+            hint_text: "Aliasname"
+            helper_text: "Alias- oder Spitzname"
             helper_text_mode: "on_focus"
             on_focus: if not self.focus: account.accountEvent(self)
         MDTextField:
@@ -107,24 +108,6 @@ Builder.load_string(
 <MyMapMarker>:
     on_press: app.clickMarker(self)
 
-<MsgPopup>:
-    size_hint: .7, .4
-    title: "Attention"
-    
-    BoxLayout:
-        orientation: 'vertical'
-        padding: 10
-        spacing: 20
-
-        Label:
-            id: message_label
-            size_hint_y: 0.4
-            text: "Label"
-        Button:
-            text: 'Weiter'
-            size_hint_y: 0.4
-            on_press: root.dismiss()
-            
 <Images>:
     id: images
     bl: bl
@@ -139,6 +122,7 @@ Builder.load_string(
             height: self.minimum_height
             id:bl
             spacing: 10
+            margin: 10,10
             canvas.before:
                 Color:
                     rgba: 1, 0, 0, .2
@@ -154,7 +138,7 @@ Builder.load_string(
         id: sv
         Scatter:
             size_hint: None, None
-            rotation: False
+            do_rotation: False
             size: app.root.sm.size
             AsyncImage:
                 id: im
@@ -266,6 +250,7 @@ class Images(Screen):
         elif l == 1:
             self.show_single_image(copy_list[0])
             return
+        self.bl.clear_widgets()
         for i, cp in enumerate(copy_list):
             im = AsyncImage(source=cp, on_touch_down=self.show_single_image)
             im.size = app.root.sm.size
@@ -304,12 +289,20 @@ class Abstellanlagen(MDApp):
 
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
-        self.config = config.Config()
+
+        try:
+            self.config = config.Config(self)
+        except Exception as e:
+            s = utils.printExToString("Konfigurationsfehler", e)
+            print(s)
+            self.error = s
+            Clock.schedule_once(self.show_error, 2)
+            return
         self.selected_base = "Abstellanlagen"  # TODO: Abfragen??
         self.baseJS = self.config.getBase(self.selected_base)
 
         self.dbinst = db.DB.instance()
-        self.dbinst.initDB(self.baseJS, app)
+        self.dbinst.initDB(self)
         self.root = Page()
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
@@ -323,12 +316,12 @@ class Abstellanlagen(MDApp):
             self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
         self.center()
 
-        self.data = Data(app, self.baseJS, name="Data")
+        self.data = Data(self, name="Data")
         self.root.sm.add_widget(self.data)
 
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.images)
-        self.kamera = Kamera(app)
+        self.kamera = Kamera(self)
 
         self.account = Account(name="Account")
         self.root.sm.add_widget(self.account)
@@ -346,32 +339,31 @@ class Abstellanlagen(MDApp):
         pass
 
     def clear(self, *args):
-        cur_screen = app.root.sm.current_screen
+        cur_screen = self.root.sm.current_screen
         if cur_screen.name == "Karte":
             return
         if cur_screen.name == "Data":
-            app.data.clear()
+            self.data.clear()
             return
         if cur_screen.name == "Images":
-            if len(cur_screen.bl.children) == 0:
-                return
-            if len(cur_screen.bl.children) > 1:
-                self.dialog = MDDialog(size_hint=(.8, .4), title="Auswahl", text="Bitte ein Bild auswählen",
-                                       buttons=[
-                                           MDFlatButton(
-                                               text="Weiter", text_color=self.theme_cls.primary_color,
-                                               on_press=self.dismiss_dialog
-                                           )])
-                self.dialog.open()
-                return
-            sc = cur_screen.bl.children[0]  # Screen/BoxLayout/Scatter
-            src = sc.children[0].source  # Scatter/AsyncImage
-            cur_screen.bl.remove_widget(sc)
-            self.data.image_list.remove(src)
+            self.msgDialog("Auswahl", "Bitte ein Bild auswählen")
+            return
+        if cur_screen.name == "Single":
+            src = cur_screen.im.source
             if platform == "android":
                 os.remove(src)
-            self.data.setData()
-            self.root.sm.current = "Data"
+            src = os.path.basename(src)
+            self.dbinst.delete_images(self.mapview.lat, self.mapview.lon, src)
+            self.show_data()
+
+    def msgDialog(self, titel, text):
+        self.dialog = MDDialog(size_hint=(.8, .4), title=titel, text=text,
+           buttons=[
+               MDFlatButton(
+                   text="Weiter", text_color=self.theme_cls.primary_color,
+                   on_press=self.dismiss_dialog
+               )])
+        self.dialog.open()
 
     def dismiss_dialog(self, *args):
         self.dialog.dismiss()
@@ -403,9 +395,12 @@ class Abstellanlagen(MDApp):
         self.images.show_images()
 
     def show_data(self):
+        print("1show_data")
         self.data.setData()
         self.mapview.center_on(self.data.lat, self.data.lon)
         self.root.sm.current = "Data"
+        self.checkAlias()
+        print("2show_data")
 
     def on_pause(self):
         print("on_pause")
@@ -446,7 +441,26 @@ class Abstellanlagen(MDApp):
         self.show_data()
 
     def do_capture(self, *args):
-        self.kamera.do_capture()
+        if self.checkAlias():
+            self.kamera.do_capture(self.mapview.lat, self.mapview.lon)
+
+    def checkAlias(self):
+        if not self.account.ids.aliasname.text:
+            self.dialog = MDDialog(size_hint=(.8, .4), title="Account", text="Bitte den Aliasnamen ausfüllen",
+                                   buttons=[
+                                       MDFlatButton(
+                                           text="Weiter", text_color=self.theme_cls.primary_color,
+                                           on_press=self.dismiss_dialog
+                                       )])
+            self.dialog.open()
+            self.root.sm.current = "Account"
+            return False
+        return True
+
+    def show_error(self, *args):
+        self.msgDialog("Konfigurationsfehler", self.error)
+
+
 
 
 if __name__ == '__main__':

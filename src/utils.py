@@ -4,15 +4,7 @@ import sys
 import time
 import traceback
 
-from kivy.uix.popup import Popup
-
 photo_image_path = "photo_camera-black.png"
-
-
-class MsgPopup(Popup):
-    def __init__(self, msg):
-        super().__init__()
-        self.ids.message_label.text = msg
 
 
 def printEx(msg, e):

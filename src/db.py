@@ -16,12 +16,12 @@ class DB():
             DB._dbinst = DB()
         return DB._dbinst
 
-    def initDB(self, baseJS, app):
-        self.baseJS = baseJS
+    def initDB(self, app):
         self.app = app
-        self.tabellenname = baseJS.get("db_tabellenname")
-        self.stellen = baseJS.get("gps").get("nachkommastellen")
-        db = utils.getDataDir() + "/" + baseJS.get("db_name")
+        self.baseJS = app.baseJS
+        self.tabellenname = self.baseJS.get("db_tabellenname")
+        self.stellen = self.baseJS.get("gps").get("nachkommastellen")
+        db = utils.getDataDir() + "/" + self.baseJS.get("db_name")
 
         print("db path", db)
         self.conn = sqlite3.connect(db)
@@ -49,22 +49,7 @@ class DB():
             c = self.conn.cursor()
             c.execute(stmt)
 
-    def getimages(self, lat, lon):
-        lat_round = str(round(lat, self.stellen))
-        lon_round = str(round(lon, self.stellen))
-        p = []
-        with self.conn:
-            c = self.conn.cursor()
-            c.execute("SELECT image_path from " + self.tabellenname + "_images WHERE lat_round = ? and lon_round = ?",
-                      (lat_round, lon_round))
-            while True:
-                r = c.fetchmany(100)
-                if len(r) == 0:
-                    break
-                p.extend([t[0] for t in r])
-            return p
-
-    def getdata(self, lat, lon):
+    def get_data(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
         with self.conn:
@@ -77,6 +62,14 @@ class DB():
             cols = [t[0] for t in c.description]
             r = dict(zip(cols, vals))
             return r
+
+    def delete_data(self, lat, lon):
+        lat_round = str(round(lat, self.stellen))
+        lon_round = str(round(lon, self.stellen))
+        with self.conn:
+            c = self.conn.cursor()
+            c.execute("DELETE from " + self.tabellenname + "_data WHERE lat_round = ? and lon_round = ?",
+                      (lat_round, lon_round))
 
     def update_data(self, name, text, lat, lon):
         lat_round = str(round(lat, self.stellen))
@@ -100,13 +93,6 @@ class DB():
             self.app.add_marker(lat, lon)
         except Exception as e:
             utils.printEx("update_data:", e)
-
-    def getMarkerLocs(self):
-        with self.conn:
-            c = self.conn.cursor()
-            c.execute("SELECT lat, lon from " + self.tabellenname + "_data")
-            vals = c.fetchall()
-            return vals
 
     def get_account(self):
         with self.conn:
@@ -135,6 +121,17 @@ class DB():
         except Exception as e:
             utils.printEx("update_account:", e)
 
+    def get_images(self, lat, lon):
+        lat_round = str(round(lat, self.stellen))
+        lon_round = str(round(lon, self.stellen))
+        with self.conn:
+            c = self.conn.cursor()
+            r = c.execute("SELECT image_path from " + self.tabellenname
+                          + "_images WHERE lat_round = ? and lon_round = ?", (lat_round, lon_round))
+            # r returns a list of tuples with one element "path"
+            p = [t[0] for t in r]
+            return p
+
     def insert_image(self, filename, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
@@ -144,8 +141,7 @@ class DB():
                 c = self.conn.cursor()
 
                 fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING",
-                          "lon_round STRING",
-                          "image_path STRING"]
+                          "lon_round STRING", "image_path STRING"]
 
                 vals = {"creator": self.aliasname, "created": now, "lat": lat, "lon": lon,
                         "lat_round": lat_round, "lon_round": lon_round, "image_path": filename}
@@ -153,3 +149,19 @@ class DB():
                 c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(colnames) + ")", vals)
         except Exception as e:
             utils.printEx("insert_image:", e)
+
+    def delete_images(self, lat, lon, image_path):
+        lat_round = str(round(lat, self.stellen))
+        lon_round = str(round(lon, self.stellen))
+        with self.conn:
+            c = self.conn.cursor()
+            c.execute("DELETE from " + self.tabellenname +
+                      "_images WHERE lat_round = ? and lon_round = ? and image_path=?", (lat_round, lon_round, image_path))
+            # print("deleted rows", c.rowcount)
+
+    def getMarkerLocs(self):
+        with self.conn:
+            c = self.conn.cursor()
+            c.execute("SELECT lat, lon from " + self.tabellenname + "_data")
+            vals = c.fetchall()
+            return vals
