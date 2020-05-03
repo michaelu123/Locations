@@ -23,7 +23,7 @@ class Config():
         return (gps.get("min_lon"), gps.get("min_lat"), gps.get("max_lon"), gps.get("max_lat"))
 
     def getNames(self):
-        return self.configs.keys()
+        return list(self.configs.keys())
 
     def getMinZoom(self, name):
         gps = self.configs[name].get("gps")

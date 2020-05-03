@@ -6,6 +6,7 @@ import plyer
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
+from kivy.storage.jsonstore import JsonStore
 from kivy.uix.image import AsyncImage
 from kivy.uix.scatter import Scatter
 from kivy.uix.screenmanager import Screen
@@ -38,24 +39,24 @@ Builder.load_string(
             id: vorname
             name: "vorname"
             hint_text: "Vorname"
-            on_focus: if not self.focus: account.accountEvent(self)
+            on_focus: if not self.focus: account.accountEvent()
         MDTextField:
             id: nachname
             name: "nachname"
             hint_text: "Nachname"
-            on_focus: if not self.focus: account.accountEvent(self)
+            on_focus: if not self.focus: account.accountEvent()
         MDTextField:
             id: aliasname
             name: "aliasname"
             hint_text: "Aliasname"
             helper_text: "Alias- oder Spitzname"
             helper_text_mode: "on_focus"
-            on_focus: if not self.focus: account.accountEvent(self)
+            on_focus: if not self.focus: account.accountEvent()
         MDTextField:
             id: emailadresse
             name: "emailadresse"
             hint_text: "Email-Adresse"
-            on_focus: if not self.focus: account.accountEvent(self)
+            on_focus: if not self.focus: account.accountEvent()
 
 <Toolbar@BoxLayout>:
     size_hint_y: None
@@ -172,7 +173,7 @@ Builder.load_string(
         orientation: "vertical"
         MDToolbar:
             id: toolbar
-            title: "Abstellanlagen"
+            title: "Locations"
             md_bg_color: app.theme_cls.primary_color
             background_palette: 'Primary'
             elevation: 10
@@ -202,23 +203,27 @@ Builder.load_string(
             pos: self.pos
             size_hint_y: 0.9
             id: sm
-            Karte: 
-                name: "Karte"
    """
 )
 
-
 class Account(Screen):
-    def accountEvent(self, x):
-        app.dbinst.update_account(x.name, x.text)
-        pass
+    def accountEvent(self):
+        app.store.put("account",
+                      vorname = self.ids.vorname.text,
+                      nachname = self.ids.nachname.text,
+                      aliasname=self.ids.aliasname.text,
+                      emailadresse=self.ids.emailadresse.text)
 
     def init(self):
-        acc = app.dbinst.get_account()
+        try:
+            acc = app.store.get("account")
+        except:
+            acc = {"vorname":"", "nachname":"", "aliasname":"", "emailadresse":""}
         self.ids.vorname.text = acc["vorname"]
         self.ids.nachname.text = acc["nachname"]
         self.ids.aliasname.text = acc["aliasname"]
         self.ids.emailadresse.text = acc["emailadresse"]
+
 
 class MyMapMarker(MapMarker):
     pass
@@ -274,7 +279,7 @@ class ItemConfirm(OneLineAvatarIconListItem):
         super().__init__(**kwargs)
 
 
-class Abstellanlagen(MDApp):
+class Locations(MDApp):
     def build(self):
         if platform == 'android':
             perms = ["android.permission.READ_EXTERNAL_STORAGE",
@@ -298,39 +303,59 @@ class Abstellanlagen(MDApp):
             self.error = s
             Clock.schedule_once(self.show_error, 2)
             return
-        self.selected_base = "Abstellanlagen"  # TODO: Abfragen??
-        self.baseJS = self.config.getBase(self.selected_base)
-
-        self.dbinst = db.DB.instance()
-        self.dbinst.initDB(self)
+        self.config = config.Config(self)
+        self.store = JsonStore("base.json")
         self.root = Page()
+        try:
+            base = self.store.get("base")["base"]
+        except:
+            base = self.config.getNames()[0]
+        self.setup(base)
+
+        # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
+        return self.root
+
+    def setup(self, base):
+        self.selected_base = base
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
 
-        self.mapview = self.root.sm.current_screen.ids.mapview
+        self.store.put("base", base=self.selected_base)
+        self.baseJS = self.config.getBase(self.selected_base)
+        self.dbinst = db.DB.instance()
+        self.dbinst.initDB(self)
+
+        # self.root.sm.clear_widgets() does not work !?
+        sm_screens = self.root.sm.screens[:]
+        self.root.sm.clear_widgets(sm_screens)
+        sm_screens = None
+
+        self.karte = Karte(name="Karte")
+        self.root.sm.add_widget(self.karte)
+
+        self.mapview = self.karte.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = self.config.getMinZoom(self.selected_base)
         self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
-        markers = self.dbinst.getMarkerLocs()
-        for marker in markers:
-            self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
-        self.center()
-
-        self.data = Data(self, name="Data")
-        self.root.sm.add_widget(self.data)
 
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.images)
-        self.kamera = Kamera(self)
-
-        self.account = Account(name="Account")
-        self.root.sm.add_widget(self.account)
 
         self.single = Single(name="Single")
         self.root.sm.add_widget(self.single)
 
-        # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
-        return self.root
+        self.data = Data(self, name="Data")
+        self.root.sm.add_widget(self.data)
+
+        self.kamera = Kamera(self)
+        self.account = Account(name="Account")
+        self.root.sm.add_widget(self.account)
+
+        markers = self.dbinst.getMarkerLocs()
+        for marker in markers:
+            self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
+        self.center()
+        self.root.sm.current = "Karte"
 
     def show_account(self, *args):
         self.root.sm.current = "Account"
@@ -407,8 +432,20 @@ class Abstellanlagen(MDApp):
         return True
 
     def on_resume(self):
-        print("on_resume")
+        print("on_resume1")
+        base = self.store.get("base")["base"]
+        self.setup(base)
         pass
+
+    def change_base(self, *args):
+        self.dismiss_dialog()
+        items = self.items
+        for item in items:
+            if item.ids.check.active:
+                t = item.text
+                if t != self.selected_base:
+                    self.setup(t)
+                    return
 
     def change_variable(self, value):
         print("value=", value)
@@ -419,14 +456,14 @@ class Abstellanlagen(MDApp):
         x = basen.index(self.selected_base)
         for i, item in enumerate(items):
             items[i].ids.check.active = i == x
-        buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=self.dismiss_dialog)]
+        self.items = items
+        buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=app.change_base)]
         self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
                                text="Bitte Datenbasis auswählen",
                                items=items, buttons=buttons)
         self.dialog.open()
 
     def set_icon(self, instance_check, x):
-        self.selected_base = x.text
         instance_check.active = True
         check_list = instance_check.get_widgets(instance_check.group)
         for check in check_list:
@@ -469,6 +506,6 @@ if __name__ == '__main__':
         locale.setlocale(locale.LC_ALL, "")
     except Exception as e:
         utils.printEx("setlocale", e)
-    app = Abstellanlagen()
+    app = Locations()
 
     app.run()

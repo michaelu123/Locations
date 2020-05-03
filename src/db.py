@@ -22,8 +22,6 @@ class DB():
         self.tabellenname = self.baseJS.get("db_tabellenname")
         self.stellen = self.baseJS.get("gps").get("nachkommastellen")
         db = utils.getDataDir() + "/" + self.baseJS.get("db_name")
-
-        print("db path", db)
         self.conn = sqlite3.connect(db)
 
         fields = ["creator TEXT", "created TEXT", "modified TEXT", "lat REAL", "lon REAL", "lat_round STRING",
@@ -39,12 +37,6 @@ class DB():
         fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
                   "image_path STRING"]
         stmt = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
-        with self.conn:
-            c = self.conn.cursor()
-            c.execute(stmt)
-
-        fields = ["vorname TEXT", "nachname TEXT", "aliasname TEXT", "emailadresse TEXT"]
-        stmt = "CREATE TABLE IF NOT EXISTS  account(" + ", ".join(fields) + ")"
         with self.conn:
             c = self.conn.cursor()
             c.execute(stmt)
@@ -93,33 +85,6 @@ class DB():
             self.app.add_marker(lat, lon)
         except Exception as e:
             utils.printEx("update_data:", e)
-
-    def get_account(self):
-        with self.conn:
-            c = self.conn.cursor()
-            c.execute("SELECT * from account")
-            vals = c.fetchone()
-            if vals is None:
-                return {"vorname": "", "nachname": "", "aliasname": "", "emailadresse": ""}
-            cols = [t[0] for t in c.description]
-            r = dict(zip(cols, vals))
-            self.aliasname = r["aliasname"]
-            return r
-
-    def update_account(self, name, text):
-        try:
-            with self.conn:
-                c = self.conn.cursor()
-                r1 = c.execute("UPDATE account set " + name + " = ?", (text,))
-                if r1.rowcount == 0:  # row did not yet exist
-                    vals = {"vorname": "", "nachname": "", "aliasname": "", "emailadresse": ""}
-                    vals[name] = text
-                    colnames = [":" + k for k in vals.keys()]
-                    c.execute("INSERT INTO account VALUES(" + ",".join(colnames) + ")", vals)
-            if name == "aliasname":
-                self.aliasname = text
-        except Exception as e:
-            utils.printEx("update_account:", e)
 
     def get_images(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
