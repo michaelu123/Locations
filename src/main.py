@@ -1,3 +1,4 @@
+import gc
 import locale
 import os
 import os.path
@@ -157,11 +158,12 @@ Builder.load_string(
     on_release: app.change_variable(self.text)
     
 <ItemConfirm>
-    on_release: app.set_icon(check, self)
+    on_release: root.set_icon(check)
+    
     CheckboxRightWidget:
         id: check
         group: "check"
-        on_release: app.set_icon(check, root) # call set_icon for click on checkbox and label
+        #on_release: root.set_icon(check, root) # call set_icon for click on checkbox and label
 
 
 <Page>:
@@ -275,8 +277,12 @@ class Images(Screen):
 class ItemConfirm(OneLineAvatarIconListItem):
     divider = None
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def set_icon(self, instance_check):
+        instance_check.active = True
+        check_list = instance_check.get_widgets(instance_check.group)
+        for check in check_list:
+            if check != instance_check:
+                check.active = False
 
 
 class Locations(MDApp):
@@ -316,6 +322,7 @@ class Locations(MDApp):
         return self.root
 
     def setup(self, base):
+        gc.collect()
         self.selected_base = base
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
@@ -356,6 +363,7 @@ class Locations(MDApp):
             self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
         self.center()
         self.root.sm.current = "Karte"
+        gc.collect()
 
     def show_account(self, *args):
         self.root.sm.current = "Account"
@@ -363,12 +371,22 @@ class Locations(MDApp):
     def senden(self, *args):
         pass
 
+    def checkMarker(self):
+        if self.curMarker is None:
+            return
+        lat = self.mapview.lat
+        lon = self.mapview.lon
+        if self.curMarker.lat == lat and self.curMarker.lon == lon and not self.dbinst.existsLatLon(lat, lon):
+            self.mapview.remove_marker(self.curMarker)
+            self.curMarker = None
+
     def clear(self, *args):
         cur_screen = self.root.sm.current_screen
         if cur_screen.name == "Karte":
             return
         if cur_screen.name == "Data":
             self.data.clear()
+            self.checkMarker()
             return
         if cur_screen.name == "Images":
             self.msgDialog("Auswahl", "Bitte ein Bild auswählen")
@@ -379,6 +397,7 @@ class Locations(MDApp):
                 os.remove(src)
             src = os.path.basename(src)
             self.dbinst.delete_images(self.mapview.lat, self.mapview.lon, src)
+            self.checkMarker()
             self.show_data()
 
     def msgDialog(self, titel, text):
@@ -438,6 +457,7 @@ class Locations(MDApp):
         pass
 
     def change_base(self, *args):
+        print("1change")
         self.dismiss_dialog()
         items = self.items
         for item in items:
@@ -457,10 +477,11 @@ class Locations(MDApp):
         for i, item in enumerate(items):
             items[i].ids.check.active = i == x
         self.items = items
-        buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=app.change_base)]
+        buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=self.change_base)]
         self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
                                text="Bitte Datenbasis auswählen",
                                items=items, buttons=buttons)
+        self.dialog.auto_dismiss = False # this line costed me two hours! Without, change_base is not called!
         self.dialog.open()
 
     def set_icon(self, instance_check, x):
@@ -474,6 +495,7 @@ class Locations(MDApp):
         self.mapview.add_marker(MyMapMarker(lat=lat, lon=lon))
 
     def clickMarker(self, marker):
+        self.curMarker = marker
         self.mapview.center_on(marker.lat, marker.lon)
         self.show_data()
 
@@ -492,6 +514,7 @@ class Locations(MDApp):
             self.dialog.open()
             self.root.sm.current = "Account"
             return False
+        self.dbinst.aliasname = self.account.ids.aliasname.text
         return True
 
     def show_error(self, *args):

@@ -1,3 +1,43 @@
 {
-
+  "name": "Abstellplätze",
+  "db_name": "Abstellplätze.db",
+  "db_tabellenname": "abstellplätze",
+  "spreadsheet_id": "",
+  "sheet_name": "",
+  "gps": {
+    "min_lat": 48.0,
+    "max_lat": 48.25,
+    "min_lon": 11.4,
+    "max_lon": 11.8,
+    "center_lat": 48.13724404,
+    "center_lon": 11.57617109,
+    "nachkommastellen": 4,
+    "min_zoom": 11
+  },
+  "felder": [
+    {
+      "name": "ort",
+      "hint_text": "Ort",
+      "helper_text": "Platz, Straße, Haltestelle",
+      "type": "string"
+    },
+    {
+      "name": "begründung",
+      "hint_text": "Begründung",
+      "helper_text": "Umsteigen, Geschäft, Firma",
+      "type": "string"
+    },
+    {
+      "name": "anzahl",
+      "hint_text": "Ständer",
+      "helper_text": "Gewünschte Anzahl an Ständern",
+      "type": "int"
+    },
+    {
+      "name": "bemerkung",
+      "hint_text": "Bemerkung",
+      "helper_text": "Sonstiges",
+      "type": "string"
+    }
+  ]
 }

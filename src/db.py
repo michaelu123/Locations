@@ -19,6 +19,7 @@ class DB():
     def initDB(self, app):
         self.app = app
         self.baseJS = app.baseJS
+        self.aliasname = ""
         self.tabellenname = self.baseJS.get("db_tabellenname")
         self.stellen = self.baseJS.get("gps").get("nachkommastellen")
         db = utils.getDataDir() + "/" + self.baseJS.get("db_name")
@@ -128,5 +129,18 @@ class DB():
         with self.conn:
             c = self.conn.cursor()
             c.execute("SELECT lat, lon from " + self.tabellenname + "_data")
-            vals = c.fetchall()
-            return vals
+            vals_data = set(c.fetchall())
+            c.execute("SELECT lat, lon from " + self.tabellenname + "_images")
+            vals_images = set(c.fetchall())
+            return vals_data.union(vals_images)
+
+    def existsLatLon(self, lat, lon):
+        with self.conn:
+            c = self.conn.cursor()
+            r = c.execute("SELECT lat from " + self.tabellenname + "_data WHERE lat = ? and lon = ?", (lat, lon))
+            if len(list(r)) > 0:
+                return True
+            r = c.execute("SELECT lat from " + self.tabellenname + "_images WHERE lat = ? and lon = ?", (lat, lon))
+            if len(list(r)) > 0:
+                return True
+            return False
