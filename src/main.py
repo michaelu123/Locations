@@ -1,7 +1,13 @@
 import gc
+import inspect
+import io
 import locale
 import os
 import os.path
+import sys
+import time
+import traceback
+import weakref
 
 import plyer
 from kivy.clock import Clock
@@ -19,11 +25,13 @@ from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import OneLineAvatarIconListItem
 
+import bugs
 import config
 import db
 import utils
 from data import Data
 from kamera import Kamera
+
 
 Builder.load_string(
     """
@@ -87,7 +95,7 @@ Builder.load_string(
         MapView:
             id: mapview
             zoom: 15
-            snap_to_zoom: 1
+            snap_to_zoom: True
             canvas:
                 Color: 
                     rgba:1,0,0,0.5
@@ -100,12 +108,13 @@ Builder.load_string(
             #size_hint: 0.5, 0.5
             #pos_hint: {"x": .25, "y": .25}
             #on_map_relocated: mapview.sync_to(self)
-            #on_map_relocated: mapview.sync_to(self)
         Toolbar:
             MDLabel:
-                text: "Longitude: {}".format(mapview.lon)
+                text: "Zoom: {}".format(mapview.zoom)
             MDLabel:
-                text: "Latitude: {}".format(mapview.lat)
+                text: "Lon: {}".format(round(mapview.lon, 6))
+            MDLabel:
+                text: "Lat: {}".format(round(mapview.lat, 6))
 
 <MyMapMarker>:
     on_press: app.clickMarker(self)
@@ -300,6 +309,7 @@ class Locations(MDApp):
 
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
+        self.markerSet = set()
 
         try:
             self.config = config.Config(self)
@@ -309,20 +319,20 @@ class Locations(MDApp):
             self.error = s
             Clock.schedule_once(self.show_error, 2)
             return
-        self.config = config.Config(self)
         self.store = JsonStore("base.json")
         self.root = Page()
         try:
             base = self.store.get("base")["base"]
         except:
             base = self.config.getNames()[0]
+        print("base", base)
         self.setup(base)
 
         # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
         return self.root
 
     def setup(self, base):
-        gc.collect()
+        #gc.collect()
         self.selected_base = base
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
@@ -344,6 +354,10 @@ class Locations(MDApp):
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = self.config.getMinZoom(self.selected_base)
         self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
+        # Hack, trying to fix random zoom bug
+        self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
+        self.mapview._scatter.scale_max: 2.  # MUH was 3!?
+
 
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.images)
@@ -363,7 +377,7 @@ class Locations(MDApp):
             self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
         self.center()
         self.root.sm.current = "Karte"
-        gc.collect()
+        #gc.collect()
 
     def show_account(self, *args):
         self.root.sm.current = "Account"
@@ -374,9 +388,10 @@ class Locations(MDApp):
     def checkMarker(self):
         if self.curMarker is None:
             return
-        lat = self.mapview.lat
-        lon = self.mapview.lon
-        if self.curMarker.lat == lat and self.curMarker.lon == lon and not self.dbinst.existsLatLon(lat, lon):
+        lat = self.curMarker.lat
+        lon = self.curMarker.lon
+
+        if not self.dbinst.existsLatLon(lat, lon):
             self.mapview.remove_marker(self.curMarker)
             self.curMarker = None
 
@@ -416,12 +431,16 @@ class Locations(MDApp):
         gps = self.baseJS.get("gps")
         lat = gps.get("center_lat")
         lon = gps.get("center_lon")
+        self.center_on(lat, lon)
+
+    def center_on(self, lat, lon):
+        self.mapview.set_zoom_at(18, 0, 0, 2.0)
         self.mapview.center_on(lat, lon)
 
     def gps_onlocation(self, **kwargs):
         lat = kwargs["lat"]
         lon = kwargs["lon"]
-        self.mapview.center_on(float(lat), float(lon))
+        self.center_on(float(lat), float(lon))
         self.gps.stop()
 
     def gps_onstatus(self, **kwargs):
@@ -439,19 +458,17 @@ class Locations(MDApp):
         self.images.show_images()
 
     def show_data(self):
-        print("1show_data")
-        self.data.setData()
-        self.mapview.center_on(self.data.lat, self.data.lon)
-        self.root.sm.current = "Data"
-        self.checkAlias()
-        print("2show_data")
+        if self.checkAlias():
+            self.data.setData()
+            self.center_on(self.data.lat, self.data.lon)
+            self.root.sm.current = "Data"
 
     def on_pause(self):
         print("on_pause")
         return True
 
     def on_resume(self):
-        print("on_resume1")
+        print("on_resume")
         base = self.store.get("base")["base"]
         self.setup(base)
         pass
@@ -459,11 +476,15 @@ class Locations(MDApp):
     def change_base(self, *args):
         print("1change")
         self.dismiss_dialog()
+        print("2change")
         items = self.items
         for item in items:
+            print("2change")
             if item.ids.check.active:
                 t = item.text
+                print("3change")
                 if t != self.selected_base:
+                    print("4change")
                     self.setup(t)
                     return
 
@@ -471,18 +492,35 @@ class Locations(MDApp):
         print("value=", value)
 
     def show_menu(self, *args):
+        t1 = time.perf_counter()
+        print("1show_menu")
         basen = list(self.config.getNames())
+        t2 = time.perf_counter()
+        print("2show_menu", t2-t1)
         items = [ItemConfirm(text=base) for base in basen]
+        t2 = time.perf_counter()
+        print("3show_menu", t2-t1)
         x = basen.index(self.selected_base)
+        t2 = time.perf_counter()
+        print("4show_menu", t2-t1)
         for i, item in enumerate(items):
             items[i].ids.check.active = i == x
+        t2 = time.perf_counter()
+        print("5show_menu", t2-t1)
         self.items = items
         buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=self.change_base)]
+        t2 = time.perf_counter()
+        print("6show_menu", t2-t1)
         self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
                                text="Bitte Datenbasis auswählen",
                                items=items, buttons=buttons)
         self.dialog.auto_dismiss = False # this line costed me two hours! Without, change_base is not called!
+        t2 = time.perf_counter()
+        print("7show_menu", t2-t1)
         self.dialog.open()
+        t2 = time.perf_counter()
+        print("8show_menu", t2-t1)
+
 
     def set_icon(self, instance_check, x):
         instance_check.active = True
@@ -492,15 +530,19 @@ class Locations(MDApp):
                 check.active = False
 
     def add_marker(self, lat, lon):
+        if (lat,lon) in self.markerSet:
+            return
+        self.markerSet.add((lat, lon))
         self.mapview.add_marker(MyMapMarker(lat=lat, lon=lon))
 
     def clickMarker(self, marker):
         self.curMarker = marker
-        self.mapview.center_on(marker.lat, marker.lon)
+        self.center_on(marker.lat, marker.lon)
         self.show_data()
 
     def do_capture(self, *args):
-        if self.checkAlias():
+        if self.checkAlias() and self.root.sm.current_screen =="Data":
+            self.data.setData()
             self.kamera.do_capture(self.mapview.lat, self.mapview.lon)
 
     def checkAlias(self):
@@ -521,9 +563,7 @@ class Locations(MDApp):
         self.msgDialog("Konfigurationsfehler", self.error)
 
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         # this seems to have no effect on android for strftime...
         locale.setlocale(locale.LC_ALL, "")
@@ -531,4 +571,14 @@ if __name__ == '__main__':
         utils.printEx("setlocale", e)
     app = Locations()
 
-    app.run()
+    bugs.fixBugs()
+    if platform == "android":
+        app.run()
+    else:
+        import cProfile
+        import pstats
+
+        cProfile.run("app.run()", "cprof.prf")
+        with open("cprof.txt", "w") as cprf:
+            p = pstats.Stats("cprof.prf", stream=cprf)
+            p.strip_dirs().sort_stats("cumulative").print_stats(20)

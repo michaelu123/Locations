@@ -1,3 +1,4 @@
+import gc
 import os
 
 from kivy.lang import Builder
@@ -44,7 +45,7 @@ class TextField(MDTextField):
         super().__init__(**kwargs)
 
     def data_event(self, *args):
-        self.data.db.update_data(self.feldname, self.text, self.data.lat, self.data.lon)
+        self.data.db.update_data(self.feldname, self.text, self.data.app.mapview.lat, self.data.app.mapview.lon)
 
 
 class Data(Screen):
@@ -56,7 +57,7 @@ class Data(Screen):
         self.fields = {}
         self.impath = utils.getDataDir() + "/images/"
 
-        self.image_list = [self.impath + utils.photo_image_path]
+        self.image_list = ["./images/" + utils.photo_image_path]
         self.db = db.DB.instance()
         super().__init__(**kwargs)
 
@@ -74,15 +75,14 @@ class Data(Screen):
             self.ids.bl.add_widget(tf, index=1)
 
     def setData(self):
-        print("1setData")
+        #gc.collect()
         # get images for lat/lon
         mv = self.app.mapview
         self.lat, self.lon = mv.lat, mv.lon
         imgs = list(set(self.db.get_images(self.lat, self.lon)))
         # photo_image must be the last or the only one
-        imgs.append(utils.photo_image_path)
         imlist = [self.impath + p for p in imgs]
-        print("image_list", imlist)
+        imlist.append("./images/" + utils.photo_image_path)
 
         imlist2 = []
         for p in imlist:
@@ -92,14 +92,13 @@ class Data(Screen):
                 print("cannot access", p)
                 # raise Exception("cannot access " + p)
         self.image_list = imlist2
-        print("2setData", imlist2)
 
         # get data for lat/lon
         values = self.db.get_data(self.lat, self.lon)
         for name in self.fields.keys():
             field = self.fields[name]
             field.text = str(values[name]) if values is not None else ""
-        print("3setData")
+        #gc.collect()
 
     def clear(self, *args):
         self.db.delete_data(self.lat, self.lon)
@@ -114,7 +113,6 @@ class Data(Screen):
         if args[0].collide_point(args[1].pos[0], args[1].pos[1]):
             self.app.show_images(self, args)
 
-    def addImage(self, filename, filepath):
-        mv = self.app.mapview
-        self.db.insert_image(filename, mv.lat, mv.lon)
+    def addImage(self, filename, filepath, lat, lon):
+        self.db.insert_image(filename, lat, lon)
         self.image_list.insert(0, filepath)

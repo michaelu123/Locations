@@ -8,14 +8,20 @@ class Config():
     def __init__(self, app):
         self.app = app
         configDir = utils.getDataDir()
-        self.file_list = sorted(glob.glob(configDir + "/config/*.json"))
         self.configs = {}
-        for f in self.file_list:
-            with open(f, "r", encoding="UTF-8") as jsonFile:
-                confJS = json.load(jsonFile)
-                if confJS.get("name") is None:
-                    continue
-                self.configs[confJS.get("name")] = confJS
+        for dir in set([configDir, "."]):
+            self.file_list = sorted(glob.glob(dir + "/config/*.json"))
+            for f in self.file_list:
+                try:
+                    with open(f, "r", encoding="UTF-8") as jsonFile:
+                        confJS = json.load(jsonFile)
+                        if confJS.get("name") is None:
+                            continue
+                        nm = confJS.get("name")
+                        self.configs[nm] = confJS
+                        print("gelesen:", f, nm)
+                except Exception as e:
+                    utils.printEx("Fehler beim Lesen von " + f, e)
 
     def getGPSArea(self, name):
         gps = self.configs[name].get("gps")

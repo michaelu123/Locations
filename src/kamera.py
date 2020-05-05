@@ -16,6 +16,8 @@ class Kamera:
         self.toggle = True
 
     def do_capture(self, lat, lon):
+        self.lat = lat
+        self.lon = lon
         if platform != "android":
             self.app.msgDialog("OS-Spezifisch", "Kamera ist nur auf Android verfügbar")
             print("1docaptcb")
@@ -29,7 +31,7 @@ class Kamera:
             self.filepath = utils.getDataDir() + "/images/" + filename
             if not os.path.exists(self.filepath):
                 raise Exception("???")
-            self.app.data.addImage(filename, self.filepath)
+            self.app.data.addImage(filename, self.filepath, lat, lon)
             self.app.root.sm.current = "Data"
             return
 
@@ -52,7 +54,7 @@ class Kamera:
 
 
     def change_image(self, *args):
-        self.app.data.addImage(self.filename, self.filepath)
+        self.app.data.addImage(self.filename, self.filepath, self.lat, self.lon)
         self.app.root.sm.current = "Data"
 
 

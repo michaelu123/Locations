@@ -32,26 +32,19 @@ def acquire_permissions(permissions, timeout=30):
     from plyer.platforms.android import activity
 
     def allgranted(permissions):
-        print("permallg1", permissions)
         for perm in permissions:
-            print("permallg2", perm)
             r = activity.checkCurrentPermission(perm)
-            print("permallg3", perm, r)
             if r == 0:
                 return False
-        print("permallg4")
         return True
 
-    print("1perm", permissions)
     haveperms = allgranted(permissions)
-    print("2perm", haveperms)
     if haveperms:
         # we have the permission and are ready
         return True
 
     # invoke the permissions dialog
     activity.requestPermissions(permissions)
-    print("3perm")
 
     # now poll for the permission (UGLY but we cant use android Activity's onRequestPermissionsResult)
     t0 = time.time()
@@ -61,7 +54,7 @@ def acquire_permissions(permissions, timeout=30):
         haveperms = allgranted(permissions)
         time.sleep(1)
 
-    print("5perm", haveperms)
+    print("haveperms", haveperms)
     return haveperms
 
 def walk(p):
