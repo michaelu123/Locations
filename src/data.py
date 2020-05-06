@@ -95,10 +95,18 @@ class Data(Screen):
 
         # get data for lat/lon
         values = self.db.get_data(self.lat, self.lon)
-        for name in self.fields.keys():
-            field = self.fields[name]
-            field.text = str(values[name]) if values is not None else ""
-        #gc.collect()
+        print("data values", values, self.lat, self.lon)
+        if values is None:
+            for name in self.fields.keys():
+                field = self.fields[name]
+                field.text = ""
+        else:
+            for name in self.fields.keys():
+                field = self.fields[name]
+                field.text = str(values[name])
+                # db entry may have come from a nearby lat, lon
+                self.lat = values["lat"]
+                self.lon = values["lon"]
 
     def clear(self, *args):
         self.db.delete_data(self.lat, self.lon)

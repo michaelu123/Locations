@@ -10,7 +10,9 @@ import traceback
 import weakref
 
 import plyer
+from kivy.cache import Cache
 from kivy.clock import Clock
+from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
 from kivy.storage.jsonstore import JsonStore
@@ -200,12 +202,12 @@ Builder.load_string(
             MDRaisedButton:
                 text: "Karte"
                 size_hint: 1/4,1
-                on_release: sm.current = "Karte"
+                on_release: app.pushScreen("Karte")
             MDRaisedButton:
                 id: datenbtn
                 text: "Eigenschaften" if sm.current == "Account" else "Daten"
                 size_hint: 1/4,1
-                on_release: app.show_data()
+                on_release: app.show_data(False)
             MDRaisedButton:
                 text: "GPS fix"
                 size_hint: 1/4,1
@@ -238,7 +240,6 @@ class Account(Screen):
 
 class MyMapMarker(MapMarker):
     pass
-
 
 class Page(Widget):
     sm = ObjectProperty(None)
@@ -307,6 +308,7 @@ class Locations(MDApp):
             import my_camera
             self.camera = my_camera.MyAndroidCamera()
 
+        Window.bind(on_keyboard=self.popScreen)
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
         self.markerSet = set()
@@ -327,6 +329,7 @@ class Locations(MDApp):
             base = self.config.getNames()[0]
         print("base", base)
         self.setup(base)
+        self.dialog = None
 
         # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
         return self.root
@@ -374,13 +377,19 @@ class Locations(MDApp):
 
         markers = self.dbinst.getMarkerLocs()
         for marker in markers:
-            self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1]))
+            self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1], nocache=True))
         self.center()
-        self.root.sm.current = "Karte"
+        self.pushScreen("Karte")
+        try :
+            lat = self.store.get("latlon")["lat"]
+            lon = self.store.get("latlon")["lon"]
+            self.center_on(lat, lon)
+        except:
+            pass
         #gc.collect()
 
     def show_account(self, *args):
-        self.root.sm.current = "Account"
+        self.pushScreen("Account")
 
     def senden(self, *args):
         pass
@@ -413,9 +422,11 @@ class Locations(MDApp):
             src = os.path.basename(src)
             self.dbinst.delete_images(self.mapview.lat, self.mapview.lon, src)
             self.checkMarker()
-            self.show_data()
+            self.show_data(False)
 
     def msgDialog(self, titel, text):
+        if self.dialog is not None:
+            self.dialog.dismiss()
         self.dialog = MDDialog(size_hint=(.8, .4), title=titel, text=text,
            buttons=[
                MDFlatButton(
@@ -426,6 +437,7 @@ class Locations(MDApp):
 
     def dismiss_dialog(self, *args):
         self.dialog.dismiss()
+        self.dialog = None
 
     def center(self):
         gps = self.baseJS.get("gps")
@@ -434,8 +446,10 @@ class Locations(MDApp):
         self.center_on(lat, lon)
 
     def center_on(self, lat, lon):
-        self.mapview.set_zoom_at(18, 0, 0, 2.0)
+        self.mapview.set_zoom_at(17, 0, 0, 2.0)
         self.mapview.center_on(lat, lon)
+        self.mapview.lat = lat
+        self.mapview.lon = lon
 
     def gps_onlocation(self, **kwargs):
         lat = kwargs["lat"]
@@ -454,24 +468,34 @@ class Locations(MDApp):
         self.gps.start(minTime=10, minDistance=0)
 
     def show_images(self, *args):
-        self.root.sm.current = "Images"
+        self.pushScreen("Images")
         self.images.show_images()
 
-    def show_data(self):
+    def show_data(self, delay):
         if self.checkAlias():
             self.data.setData()
             self.center_on(self.data.lat, self.data.lon)
-            self.root.sm.current = "Data"
+            if delay and self.root.sm.current_screen.name == "Karte":
+                Clock.schedule_once(self.show_data2, 1)
+            else:
+                self.pushScreen("Data")
+
+    def show_data2(self, *args):
+        self.pushScreen("Data")
 
     def on_pause(self):
         print("on_pause")
+        self.store.put("latlon", lat=self.mapview.lat, lon=self.mapview.lon)
         return True
+
+    def on_stop(self):
+        return self.on_pause()
 
     def on_resume(self):
         print("on_resume")
         base = self.store.get("base")["base"]
         self.setup(base)
-        pass
+        return True
 
     def change_base(self, *args):
         print("1change")
@@ -492,34 +516,20 @@ class Locations(MDApp):
         print("value=", value)
 
     def show_menu(self, *args):
-        t1 = time.perf_counter()
-        print("1show_menu")
         basen = list(self.config.getNames())
-        t2 = time.perf_counter()
-        print("2show_menu", t2-t1)
         items = [ItemConfirm(text=base) for base in basen]
-        t2 = time.perf_counter()
-        print("3show_menu", t2-t1)
         x = basen.index(self.selected_base)
-        t2 = time.perf_counter()
-        print("4show_menu", t2-t1)
         for i, item in enumerate(items):
             items[i].ids.check.active = i == x
-        t2 = time.perf_counter()
-        print("5show_menu", t2-t1)
         self.items = items
         buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=self.change_base)]
-        t2 = time.perf_counter()
-        print("6show_menu", t2-t1)
+        if self.dialog is not None:
+            self.dialog.dismiss()
         self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
                                text="Bitte Datenbasis auswählen",
                                items=items, buttons=buttons)
         self.dialog.auto_dismiss = False # this line costed me two hours! Without, change_base is not called!
-        t2 = time.perf_counter()
-        print("7show_menu", t2-t1)
         self.dialog.open()
-        t2 = time.perf_counter()
-        print("8show_menu", t2-t1)
 
 
     def set_icon(self, instance_check, x):
@@ -538,23 +548,17 @@ class Locations(MDApp):
     def clickMarker(self, marker):
         self.curMarker = marker
         self.center_on(marker.lat, marker.lon)
-        self.show_data()
+        self.show_data(True)
 
     def do_capture(self, *args):
-        if self.checkAlias() and self.root.sm.current_screen =="Data":
+        if self.checkAlias(): # and self.root.sm.current_screen.name == "Data":
             self.data.setData()
-            self.kamera.do_capture(self.mapview.lat, self.mapview.lon)
+            self.kamera.do_capture(self.data.lat, self.data.lon)
 
     def checkAlias(self):
         if not self.account.ids.aliasname.text:
-            self.dialog = MDDialog(size_hint=(.8, .4), title="Account", text="Bitte den Aliasnamen ausfüllen",
-                                   buttons=[
-                                       MDFlatButton(
-                                           text="Weiter", text_color=self.theme_cls.primary_color,
-                                           on_press=self.dismiss_dialog
-                                       )])
-            self.dialog.open()
-            self.root.sm.current = "Account"
+            self.msgDialog("Account", "Bitte den Aliasnamen ausfüllen")
+            self.pushScreen("Account")
             return False
         self.dbinst.aliasname = self.account.ids.aliasname.text
         return True
@@ -562,8 +566,43 @@ class Locations(MDApp):
     def show_error(self, *args):
         self.msgDialog("Konfigurationsfehler", self.error)
 
+    def pushScreen(self, nextScreen):
+        self.lastScreen = self.root.sm.current_screen.name
+        self.root.sm.current = nextScreen
+
+    def popScreen(self, window, key, *largs):
+        if key != 27:
+            return True
+        if self.lastScreen is None:
+            if self.dialog is not None:
+                self.dialog.dismiss()
+            self.dialog = MDDialog(size_hint=(.8, .4), title="Beenden?", text="Möchten Sie die App beenden?",
+                                   buttons=[
+                                       MDFlatButton(
+                                           text="Ja", text_color=self.theme_cls.primary_color,
+                                           on_press=self.stop),
+                                       MDFlatButton(
+                                           text="Nein", text_color=self.theme_cls.primary_color,
+                                           on_press=self.dismiss_dialog),
+                                   ])
+            self.dialog.auto_dismiss = False # !!!
+            self.dialog.open()
+        else:
+            self.root.sm.current = self.lastScreen
+            self.lastScreen = None
+        return True
 
 if __name__ == "__main__":
+    # nc = True
+    # x = MyMapMarker(lat=0, lon=0, nocache=nc)
+    # print("size1", utils.getsize(x))
+    # y = []
+    # for i in range(100):
+    #     y.append(MyMapMarker(lat=0, lon=0, nocache=nc))
+    # print("size100", utils.getsize(y))
+    # Cache.print_usage()
+
+
     try:
         # this seems to have no effect on android for strftime...
         locale.setlocale(locale.LC_ALL, "")

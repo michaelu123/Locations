@@ -1,5 +1,10 @@
+import inspect
+import os
+import weakref
+
 from kivy.uix.widget import Widget
 
+tracing = False
 
 class WeakMethod:
     '''Implementation of a
@@ -10,12 +15,13 @@ class WeakMethod:
         self.method = None
         self.method_name = None
         try:
-            #call_frames = inspect.stack()
-            #self.stacktrace= "\n".join([">>>  " + os.path.basename(t.filename) + ":" + str(t.lineno) + " " + t.function for t in call_frames[1:]])
-            #self.called_method = method.__func__.__name__
+            if tracing:
+                call_frames = inspect.stack()
+                self.stacktrace= "\n".join([">>>  " + os.path.basename(t.filename) + ":" + str(t.lineno) + " " + t.function for t in call_frames[1:]])
+            self.called_method = method.__func__.__name__
             if method.__self__ is not None:
                 self.method_name = method.__func__.__name__
-                self.proxy = method.__self__ # weakref.proxy(method.__self__)
+                self.proxy = weakref.proxy(method.__self__)  # method.__self__
             else:
                 self.method = method
                 self.proxy = None
@@ -24,8 +30,11 @@ class WeakMethod:
             self.proxy = None
 
     def do_nothing(self,*args):
-        print("do_nothing instead of method ", self.called_method, "generated in:")
-        print(self.stacktrace)
+        if tracing:
+            print("do_nothing instead of method", self.called_method, "generated in:")
+            print(self.stacktrace)
+        else:
+            print("do_nothing instead of method", self.called_method)
 
     def __call__(self):
         '''Return a new bound-method like the original, or the
@@ -40,12 +49,6 @@ class WeakMethod:
             pass
         return self.do_nothing if self.method is None else self.method
 
-    # MUH
-    # def is_dead(self):
-    #     '''Returns True if the referenced callable was a bound method and
-    #     the instance no longer exists. Otherwise, return False.
-    #     '''
-    #     return self.proxy is not None and not bool(dir(self.proxy))
     def is_dead(self):
         '''Returns True if the referenced callable was a bound method and
         the instance no longer exists. Otherwise, return False.
@@ -53,8 +56,11 @@ class WeakMethod:
         try:
             return self.proxy is not None and not bool(dir(self.proxy))
         except ReferenceError:
-            print("Callback ", self.called_method, " no longer exists, generated in:")
-            print(self.stacktrace)
+            if tracing:
+                print("Callback ", self.called_method, " no longer exists, generated in:")
+                print(self.stacktrace)
+            else:
+                print("Callback ", self.called_method, " no longer exists")
             return True
 
     def __eq__(self, other):

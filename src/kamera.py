@@ -27,12 +27,13 @@ class Kamera:
             else:
                 filename = "108-0892_IMG.jpg"
                 self.toggle = True
-
             self.filepath = utils.getDataDir() + "/images/" + filename
             if not os.path.exists(self.filepath):
                 raise Exception("???")
             self.app.data.addImage(filename, self.filepath, lat, lon)
-            self.app.root.sm.current = "Data"
+            #self.app.root.sm.current = "Data"
+            self.app.on_pause()
+            self.app.on_resume()
             return
 
         lat_round = str(round(lat, self.stellen))
@@ -45,6 +46,7 @@ class Kamera:
             self.app.msgDialog("OS-Spezifisch", "Kamera ist nur auf Android verfügbar")
 
     def camera_callback(self, _):
+        print("camera_callback")
         if (os.path.exists(self.filepath)):
             Clock.schedule_once(self.change_image)  # call change_image in UI thread
             return False
@@ -54,7 +56,8 @@ class Kamera:
 
 
     def change_image(self, *args):
+        print("change_image")
         self.app.data.addImage(self.filename, self.filepath, self.lat, self.lon)
-        self.app.root.sm.current = "Data"
+        self.app.show_data(False)
 
 
