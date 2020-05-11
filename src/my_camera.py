@@ -51,12 +51,10 @@ class MyAndroidCamera(Camera):
     #     activity.startActivityForResult(intent, 0x123)
 
     def _on_activity_result(self, requestCode, resultCode, intent):
-        print("on_activity_result")
         if requestCode != 0x123:
             return
         activity1.unbind(on_activity_result=self._on_activity_result)
         if self.on_complete(self.filename):
-            print("on_activity_result remove")
             self._remove(self.filename)
 
     def _remove(self, fn):

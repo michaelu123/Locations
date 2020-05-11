@@ -2,22 +2,28 @@ import inspect
 import os
 import weakref
 
+import kivy.weakmethod as wm
+import kivy_garden.mapview as mv
 from kivy.uix.widget import Widget
 
 tracing = False
+
 
 class WeakMethod:
     '''Implementation of a
     `weakref <http://en.wikipedia.org/wiki/Weak_reference>`_
     for functions and bound methods.
     '''
+
     def __init__(self, method):
         self.method = None
         self.method_name = None
         try:
             if tracing:
                 call_frames = inspect.stack()
-                self.stacktrace= "\n".join([">>>  " + os.path.basename(t.filename) + ":" + str(t.lineno) + " " + t.function for t in call_frames[1:]])
+                self.stacktrace = "\n".join(
+                    [">>>  " + os.path.basename(t.filename) + ":" + str(t.lineno) + " " + t.function for t in
+                     call_frames[1:]])
             self.called_method = method.__func__.__name__
             if method.__self__ is not None:
                 self.method_name = method.__func__.__name__
@@ -29,7 +35,7 @@ class WeakMethod:
             self.method = method
             self.proxy = None
 
-    def do_nothing(self,*args):
+    def do_nothing(self, *args):
         if tracing:
             print("do_nothing instead of method", self.called_method, "generated in:")
             print(self.stacktrace)
@@ -74,7 +80,7 @@ class WeakMethod:
 
     def __repr__(self):
         return '<WeakMethod proxy={} method={} method_name={}>'.format(
-               self.proxy, self.method, self.method_name)
+            self.proxy, self.method, self.method_name)
 
 
 def clamp(x, minimum, maximum):
@@ -83,6 +89,24 @@ def clamp(x, minimum, maximum):
 
 
 class MapView(Widget):
+    def on_touch_up(self, touch):
+        if touch.grab_current == self:
+            touch.ungrab(self)
+            self._touch_count -= 1
+            if self._touch_count == 0:
+                # animate to the closest zoom
+                zoom, scale = self._touch_zoom
+                cur_zoom = self.zoom
+                cur_scale = self._scale
+                if cur_zoom < zoom or round(cur_scale, 2) < scale:
+                    self.animated_diff_scale_at(1.0 - cur_scale, *touch.pos)
+                elif cur_zoom > zoom or round(cur_scale, 2) > scale:
+                    self.animated_diff_scale_at(2.0 - cur_scale, *touch.pos)
+                self._pause = False
+            return True
+        return super().on_touch_up(touch)
+        #return super(mv.MapView, self).on_touch_up(touch)
+
     def on_transform(self, *args):
         self._invalid_scale = True
         if self._transform_lock:
@@ -93,12 +117,10 @@ class MapView(Widget):
         zoom = self._zoom
         scatter = self._scatter
         scale = scatter.scale
-        #MUHif scale >= 2.0:
-        if scale > 2.01:
+        if round(scale, 2) >= 2.0:
             zoom += 1
             scale /= 2.0
-        #MUH elif scale < 1.0:
-        elif scale < 0.99:
+        elif round(scale, 2) < 1.0:
             zoom -= 1
             scale *= 2.0
         zoom = clamp(zoom, map_source.min_zoom, map_source.max_zoom)
@@ -106,7 +128,7 @@ class MapView(Widget):
             self.set_zoom_at(zoom, scatter.x, scatter.y, scale=scale)
             self.trigger_update(True)
         else:
-            if zoom == map_source.min_zoom and scatter.scale < 1.0:
+            if zoom == map_source.min_zoom and round(scatter.scale, 2) < 1.0:
                 scatter.scale = 1.0
                 self.trigger_update(True)
             else:
@@ -117,17 +139,20 @@ class MapView(Widget):
         self._transform_lock = False
         self._scale = self._scatter.scale
 
-def fixBugs():
-    import kivy.weakmethod as wm
+    @property
+    def scale(self):
+        if self._invalid_scale:
+            self._invalid_scale = False
+            self._scale = round(self._scatter.scale, 2)
+        return self._scale
 
-    #print(dir(wm))
-    #print(dir(wm.WeakMethod))
+
+def fixBugs():
     wm.WeakMethod.is_dead = WeakMethod.is_dead
     wm.WeakMethod.__init__ = WeakMethod.__init__
     wm.WeakMethod.__call__ = WeakMethod.__call__
     wm.WeakMethod.do_nothing = WeakMethod.do_nothing
 
-    import kivy_garden.mapview as mv
+    mv.MapView.on_touch_up = MapView.on_touch_up
     mv.MapView.on_transform = MapView.on_transform
-
-
+    mv.MapView.scale = MapView.scale

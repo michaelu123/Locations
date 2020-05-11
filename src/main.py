@@ -97,7 +97,7 @@ Builder.load_string(
         MapView:
             id: mapview
             zoom: 15
-            snap_to_zoom: True
+            snap_to_zoom: False
             canvas:
                 Color: 
                     rgba:1,0,0,0.5
@@ -359,7 +359,7 @@ class Locations(MDApp):
         self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
         # Hack, trying to fix random zoom bug
         self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
-        self.mapview._scatter.scale_max: 2.  # MUH was 3!?
+        self.mapview._scatter.scale_max: 2.0  # MUH was 3!?
 
 
         self.images = Images(name="Images")
@@ -498,17 +498,12 @@ class Locations(MDApp):
         return True
 
     def change_base(self, *args):
-        print("1change")
         self.dismiss_dialog()
-        print("2change")
         items = self.items
         for item in items:
-            print("2change")
             if item.ids.check.active:
                 t = item.text
-                print("3change")
                 if t != self.selected_base:
-                    print("4change")
                     self.setup(t)
                     return
 
@@ -548,7 +543,7 @@ class Locations(MDApp):
     def clickMarker(self, marker):
         self.curMarker = marker
         self.center_on(marker.lat, marker.lon)
-        self.show_data(True)
+        #self.show_data(True)
 
     def do_capture(self, *args):
         if self.checkAlias(): # and self.root.sm.current_screen.name == "Data":

@@ -51,7 +51,6 @@ def acquire_permissions(permissions, timeout=30):
     # now poll for the permission (UGLY but we cant use android Activity's onRequestPermissionsResult)
     t0 = time.time()
     while time.time() - t0 < timeout and not haveperms:
-        print("4perm")
         # in the poll loop we could add a short sleep for performance issues?
         haveperms = allgranted(permissions)
         time.sleep(1)

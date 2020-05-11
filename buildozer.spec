@@ -1,7 +1,7 @@
 [app]
 
 # (str) Title of your application
-title = Abstellanlagen
+title = Locations
 
 # (str) Package name
 package.name = abstellanlagen
@@ -50,12 +50,12 @@ requirements.source.kivymd = %(kivymd.dir)s
 garden_requirements = mapview
 
 # (str) Presplash of the application
-#presplash.filename = %(source.dir)s/data/presplash.png
-presplash.filename = %(kivymd.dir)s/images/kivymd_logo.png
+presplash.filename = %(source.dir)s/images/Locations1024.png
+#presplash.filename = %(kivymd.dir)s/images/kivymd_logo.png
 
 # (str) Icon of the application
-#icon.filename = %(source.dir)s/data/icon.png
-icon.filename = %(kivymd.dir)s/images/kivymd_logo.png
+icon.filename = %(source.dir)s/images/Locations128.png
+#icon.filename = %(kivymd.dir)s/images/kivymd_logo.png
 
 # (str) Supported orientation (one of landscape, sensorLandscape, portrait or all)
 orientation = all

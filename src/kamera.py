@@ -20,7 +20,6 @@ class Kamera:
         self.lon = lon
         if platform != "android":
             self.app.msgDialog("OS-Spezifisch", "Kamera ist nur auf Android verfügbar")
-            print("1docaptcb")
             if self.toggle:
                 filename = "108-0890_IMG.jpg"
                 self.toggle = False
@@ -46,7 +45,6 @@ class Kamera:
             self.app.msgDialog("OS-Spezifisch", "Kamera ist nur auf Android verfügbar")
 
     def camera_callback(self, _):
-        print("camera_callback")
         if (os.path.exists(self.filepath)):
             Clock.schedule_once(self.change_image)  # call change_image in UI thread
             return False
@@ -56,7 +54,6 @@ class Kamera:
 
 
     def change_image(self, *args):
-        print("change_image")
         self.app.data.addImage(self.filename, self.filepath, self.lat, self.lon)
         self.app.show_data(False)
 
