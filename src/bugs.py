@@ -104,8 +104,7 @@ class MapView(Widget):
                     self.animated_diff_scale_at(2.0 - cur_scale, *touch.pos)
                 self._pause = False
             return True
-        return super().on_touch_up(touch)
-        #return super(mv.MapView, self).on_touch_up(touch)
+        return super(mv.MapView, self).on_touch_up(touch)
 
     def on_transform(self, *args):
         self._invalid_scale = True
