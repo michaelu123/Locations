@@ -51,5 +51,25 @@
       "helper_text": "Sonstiges",
       "type": "string"
     }
+  ],
+  "zusatz": [
+    {
+      "name": "wetter",
+      "hint_text": "Wetter",
+      "helper_text": "gut, mittel, schlecht",
+      "type": "string"
+    },
+    {
+      "name": "füllgrad",
+      "hint_text": "Füllgrad in Prozent",
+      "helper_text": "Füllgrad in Prozent",
+      "type": "int"
+    },
+    {
+      "name": "bemerkung",
+      "hint_text": "Bemerkung",
+      "helper_text": "Sonstiges",
+      "type": "string"
+    }
   ]
 }

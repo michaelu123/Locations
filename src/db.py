@@ -41,19 +41,33 @@ class DB():
         for feld in self.baseJS.get("felder"):
             fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
         fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT FAIL")
-        stmt = "CREATE TABLE IF NOT EXISTS " + self.baseJS.get("db_tabellenname") + "_data (" + ", ".join(fields) + ")"
+        stmt1 = "CREATE TABLE IF NOT EXISTS " +  self.tabellenname + "_data (" + ", ".join(fields) + ")"
 
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            c.execute(stmt)
+            c.execute(stmt1)
 
         fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
                   "image_path STRING"]
-        stmt = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
+        stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
+        stmt2 = "CREATE INDEX IF NOT EXISTS latlon_images ON " + self.tabellenname + "_images (lat_round, lon_round)";
         with conn:
             c = conn.cursor()
-            c.execute(stmt)
+            c.execute(stmt1)
+            c.execute(stmt2)
+
+        fields = ["nr INTEGER PRIMARY KEY", "creator TEXT", "created TEXT", "modified TEXT",
+                  "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING"]
+        for feld in self.baseJS.get("zusatz"):
+            fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
+        stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_zusatz (" + ", ".join(fields) + ")"
+        stmt2 = "CREATE INDEX IF NOT EXISTS latlon_zusatz ON " + self.tabellenname + "_zusatz (lat_round, lon_round)";
+
+        with conn:
+            c = conn.cursor()
+            c.execute(stmt1)
+            c.execute(stmt2)
 
     def get_data(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
@@ -70,7 +84,7 @@ class DB():
             r = dict(zip(cols, vals))
             return r
 
-    def delete_data(self, lat, lon):
+    def delete_data(self, tabellensuffix, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
         conn = self.getConn()
@@ -102,6 +116,64 @@ class DB():
                     self.app.add_marker(lat, lon)
         except Exception as e:
             utils.printEx("update_data:", e)
+
+    def get_zusatz(self, nr):
+        conn = self.getConn()
+        res = {}
+        with conn:
+            c = conn.cursor()
+            r = c.execute("SELECT * from " + self.tabellenname + "_zusatz WHERE nr = ?", (nr,))
+            vals = c.fetchone()
+            if vals is None:
+                return None
+            cols = [t[0] for t in c.description]
+            r = dict(zip(cols, vals))
+            return r
+
+    def get_zusatz_numbers(self, lat, lon):
+        lat_round = str(round(lat, self.stellen))
+        lon_round = str(round(lon, self.stellen))
+        conn = self.getConn()
+        with conn:
+            c = conn.cursor()
+            r = c.execute("SELECT nr from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ?",
+                      (lat_round, lon_round))
+            res = [t[0] for t in r]
+            return res
+
+    def delete_zusatz(self, nr):
+        conn = self.getConn()
+        with conn:
+            c = conn.cursor()
+            c.execute("DELETE from " + self.tabellenname + "_zusatz WHERE nr = ?", (nr, ))
+
+    def update_zusatz(self, nr, name, text, lat, lon):
+        now = time.strftime("%Y%m%d_%H%M%S")
+        rowid = nr
+        try:
+            conn = self.getConn()
+            with conn:
+                c = conn.cursor()
+                if nr:
+                    r1 = c.execute("UPDATE " + self.tabellenname + "_zusatz set "
+                                   + "modified = ?, "
+                                   + name + " = ? where nr = ?",
+                                   (now, text, nr))
+                if not nr or r1.rowcount == 0:  # row did not yet exist
+                    lat_round = str(round(lat, self.stellen))
+                    lon_round = str(round(lon, self.stellen))
+                    vals = {"nr": None, "creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
+                            "lat_round": lat_round, "lon_round": lon_round}
+                    for feld in self.baseJS.get("zusatz"):
+                        vals[feld.get("name")] = nullval[feld.get("type")]
+                    vals[name] = text
+                    colnames = [":" + k for k in vals.keys()]
+                    c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(colnames) + ")", vals)
+                    rowid = c.lastrowid
+                    self.app.add_marker(lat, lon)
+            return rowid
+        except Exception as e:
+            utils.printEx("update_zusatz:", e)
 
     def get_images(self, lat, lon):
         lat_round = str(round(lat, self.stellen))

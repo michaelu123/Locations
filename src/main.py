@@ -1,16 +1,10 @@
-import gc
-import inspect
-import io
+import json
+import json
 import locale
 import os
 import os.path
-import sys
-import time
-import traceback
-import weakref
 
 import plyer
-from kivy.cache import Cache
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.lang import Builder
@@ -19,6 +13,7 @@ from kivy.storage.jsonstore import JsonStore
 from kivy.uix.image import AsyncImage
 from kivy.uix.scatter import Scatter
 from kivy.uix.screenmanager import Screen
+from kivy.uix.settings import SettingsWithSidebar
 from kivy.uix.widget import Widget
 from kivy.utils import platform
 from kivy_garden.mapview import MapMarker
@@ -31,9 +26,8 @@ import bugs
 import config
 import db
 import utils
-from data import Data
+from data import Data, Zusatz
 from kamera import Kamera
-
 
 Builder.load_string(
     """
@@ -165,9 +159,6 @@ Builder.load_string(
 
 
 
-<MDMenuItem>:
-    on_release: app.change_variable(self.text)
-    
 <ItemConfirm>
     on_release: root.set_icon(check)
     
@@ -190,8 +181,8 @@ Builder.load_string(
             md_bg_color: app.theme_cls.primary_color
             background_palette: 'Primary'
             elevation: 10
-            left_action_items: [['account', app.show_account]]
-            right_action_items: [['camera', app.do_capture],['delete', app.clear],['dots-vertical', app.show_menu]]
+            left_action_items: [['menu', app.open_settings], ['account', app.show_account]]
+            right_action_items: [['camera', app.do_capture],['delete', app.clear],['dots-vertical', app.show_bases]]
         BoxLayout:
             orientation: "horizontal"
             size_hint_y: 0.1
@@ -219,11 +210,12 @@ Builder.load_string(
    """
 )
 
+
 class Account(Screen):
     def accountEvent(self):
         app.store.put("account",
-                      vorname = self.ids.vorname.text,
-                      nachname = self.ids.nachname.text,
+                      vorname=self.ids.vorname.text,
+                      nachname=self.ids.nachname.text,
                       aliasname=self.ids.aliasname.text,
                       emailadresse=self.ids.emailadresse.text)
 
@@ -231,7 +223,7 @@ class Account(Screen):
         try:
             acc = app.store.get("account")
         except:
-            acc = {"vorname":"", "nachname":"", "aliasname":"", "emailadresse":""}
+            acc = {"vorname": "", "nachname": "", "aliasname": "", "emailadresse": ""}
         self.ids.vorname.text = acc["vorname"]
         self.ids.nachname.text = acc["nachname"]
         self.ids.aliasname.text = acc["aliasname"]
@@ -240,6 +232,7 @@ class Account(Screen):
 
 class MyMapMarker(MapMarker):
     pass
+
 
 class Page(Widget):
     sm = ObjectProperty(None)
@@ -312,9 +305,10 @@ class Locations(MDApp):
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
         self.markerSet = set()
+        self.settings_cls = SettingsWithSidebar
 
         try:
-            self.config = config.Config(self)
+            self.baseConfig = config.Config(self)
         except Exception as e:
             s = utils.printExToString("Konfigurationsfehler", e)
             print(s)
@@ -326,7 +320,7 @@ class Locations(MDApp):
         try:
             base = self.store.get("base")["base"]
         except:
-            base = self.config.getNames()[0]
+            base = self.baseConfig.getNames()[0]
         print("base", base)
         self.setup(base)
         self.dialog = None
@@ -335,13 +329,13 @@ class Locations(MDApp):
         return self.root
 
     def setup(self, base):
-        #gc.collect()
+        # gc.collect()
         self.selected_base = base
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
 
         self.store.put("base", base=self.selected_base)
-        self.baseJS = self.config.getBase(self.selected_base)
+        self.baseJS = self.baseConfig.getBase(self.selected_base)
         self.dbinst = db.DB.instance()
         self.dbinst.initDB(self)
 
@@ -355,12 +349,11 @@ class Locations(MDApp):
 
         self.mapview = self.karte.ids.mapview
         self.mapview.map_source = "osm-de"
-        self.mapview.map_source.min_zoom = self.config.getMinZoom(self.selected_base)
-        self.mapview.map_source.bounds = self.config.getGPSArea(self.selected_base)
+        self.mapview.map_source.min_zoom = self.baseConfig.getMinZoom(self.selected_base)
+        self.mapview.map_source.bounds = self.baseConfig.getGPSArea(self.selected_base)
         # Hack, trying to fix random zoom bug
         self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
         self.mapview._scatter.scale_max: 2.0  # MUH was 3!?
-
 
         self.images = Images(name="Images")
         self.root.sm.add_widget(self.images)
@@ -370,6 +363,9 @@ class Locations(MDApp):
 
         self.data = Data(self, name="Data")
         self.root.sm.add_widget(self.data)
+        self.zusatz = Zusatz(self, name="Zusatz")
+        self.root.sm.add_widget(self.zusatz)
+
 
         self.kamera = Kamera(self)
         self.account = Account(name="Account")
@@ -380,13 +376,13 @@ class Locations(MDApp):
             self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1], nocache=True))
         self.center()
         self.pushScreen("Karte")
-        try :
+        try:
             lat = self.store.get("latlon")["lat"]
             lon = self.store.get("latlon")["lon"]
             self.center_on(lat, lon)
         except:
             pass
-        #gc.collect()
+        # gc.collect()
 
     def show_account(self, *args):
         self.pushScreen("Account")
@@ -412,6 +408,9 @@ class Locations(MDApp):
             self.data.clear()
             self.checkMarker()
             return
+        if cur_screen.name == "Zusatz":
+            self.zusatz.clear()
+            return
         if cur_screen.name == "Images":
             self.msgDialog("Auswahl", "Bitte ein Bild auswählen")
             return
@@ -428,14 +427,14 @@ class Locations(MDApp):
         if self.dialog is not None:
             self.dialog.dismiss()
         self.dialog = MDDialog(size_hint=(.8, .4), title=titel, text=text,
-           buttons=[
-               MDFlatButton(
-                   text="Weiter", text_color=self.theme_cls.primary_color,
-                   on_press=self.dismiss_dialog
-               )])
+                               buttons=[
+                                   MDFlatButton(
+                                       text="Weiter", text_color=self.theme_cls.primary_color,
+                                       on_press=self.dialog_dismiss
+                                   )])
         self.dialog.open()
 
-    def dismiss_dialog(self, *args):
+    def dialog_dismiss(self, *args):
         self.dialog.dismiss()
         self.dialog = None
 
@@ -498,7 +497,7 @@ class Locations(MDApp):
         return True
 
     def change_base(self, *args):
-        self.dismiss_dialog()
+        self.dialog_dismiss()
         items = self.items
         for item in items:
             if item.ids.check.active:
@@ -507,11 +506,8 @@ class Locations(MDApp):
                     self.setup(t)
                     return
 
-    def change_variable(self, value):
-        print("value=", value)
-
-    def show_menu(self, *args):
-        basen = list(self.config.getNames())
+    def show_bases(self, *args):
+        basen = list(self.baseConfig.getNames())
         items = [ItemConfirm(text=base) for base in basen]
         x = basen.index(self.selected_base)
         for i, item in enumerate(items):
@@ -523,9 +519,8 @@ class Locations(MDApp):
         self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
                                text="Bitte Datenbasis auswählen",
                                items=items, buttons=buttons)
-        self.dialog.auto_dismiss = False # this line costed me two hours! Without, change_base is not called!
+        self.dialog.auto_dismiss = False  # this line costed me two hours! Without, change_base is not called!
         self.dialog.open()
-
 
     def set_icon(self, instance_check, x):
         instance_check.active = True
@@ -535,7 +530,7 @@ class Locations(MDApp):
                 check.active = False
 
     def add_marker(self, lat, lon):
-        if (lat,lon) in self.markerSet:
+        if (lat, lon) in self.markerSet:
             return
         self.markerSet.add((lat, lon))
         self.mapview.add_marker(MyMapMarker(lat=lat, lon=lon))
@@ -543,10 +538,10 @@ class Locations(MDApp):
     def clickMarker(self, marker):
         self.curMarker = marker
         self.center_on(marker.lat, marker.lon)
-        #self.show_data(True)
+        # self.show_data(True)
 
     def do_capture(self, *args):
-        if self.checkAlias(): # and self.root.sm.current_screen.name == "Data":
+        if self.checkAlias():  # and self.root.sm.current_screen.name == "Data":
             self.data.setData()
             self.kamera.do_capture(self.data.lat, self.data.lon)
 
@@ -578,14 +573,63 @@ class Locations(MDApp):
                                            on_press=self.stop),
                                        MDFlatButton(
                                            text="Nein", text_color=self.theme_cls.primary_color,
-                                           on_press=self.dismiss_dialog),
+                                           on_press=self.dialog_dismiss),
                                    ])
-            self.dialog.auto_dismiss = False # !!!
+            self.dialog.auto_dismiss = False  # !!!
             self.dialog.open()
         else:
             self.root.sm.current = self.lastScreen
             self.lastScreen = None
         return True
+
+"""
+    def build_config(self, config):
+        config.setdefaults('Locations', {
+            'boolexample': True,
+            'numericexample': 10,
+            'stringexample': 'somestring',
+            'optionsexample': 'options2',
+            'pathexample': 'c:/temp',
+        })
+
+    def build_settings(self, settings):
+        settings_json = json.dumps([
+            {'type': 'title',
+             'title': 'example title'},
+            {'type': 'bool',
+             'title': 'A boolean setting',
+             'desc': 'Boolean description text',
+             'section': 'Locations',
+             'key': 'boolexample'},
+            {'type': 'numeric',
+             'title': 'A numeric setting',
+             'desc': 'Numeric description text',
+             'section': 'Locations',
+             'key': 'numericexample'},
+            {'type': 'options',
+             'title': 'An options setting',
+             'desc': 'Options description text',
+             'section': 'Locations',
+             'key': 'optionsexample',
+             'options': ['option1', 'option2', 'option3']},
+            {'type': 'string',
+             'title': 'A string setting',
+             'desc': 'String description text',
+             'section': 'Locations',
+             'key': 'stringexample'},
+            {'type': 'path',
+             'title': 'A path setting',
+             'desc': 'Path description text',
+             'section': 'Locations',
+             'key': 'pathexample'}])
+
+        settings.add_json_panel('Panel Name', self.config, data=settings_json)
+
+    def on_config_change(self, config, section, key, value):
+        print(config, section, key, value)
+"""
+
+
 
 if __name__ == "__main__":
     # nc = True
@@ -596,7 +640,6 @@ if __name__ == "__main__":
     #     y.append(MyMapMarker(lat=0, lon=0, nocache=nc))
     # print("size100", utils.getsize(y))
     # Cache.print_usage()
-
 
     try:
         # this seems to have no effect on android for strftime...

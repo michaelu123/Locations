@@ -20,7 +20,9 @@
       "hint_text": "Ort",
       "helper_text": "Platz, Straße, Haltestelle",
       "type": "string"
-    },
+    }
+  ],
+  "zusatz": [
     {
       "name": "begründung",
       "hint_text": "Begründung",
