@@ -35,12 +35,12 @@ class WeakMethod:
             self.method = method
             self.proxy = None
 
-    def do_nothing(self, *args):
-        if tracing:
-            print("do_nothing instead of method", self.called_method, "generated in:")
-            print(self.stacktrace)
-        else:
-            print("do_nothing instead of method", self.called_method)
+    # def do_nothing(self, *args):
+    #     if tracing:
+    #         print("do_nothing instead of method", self.called_method, "generated in:")
+    #         print(self.stacktrace)
+    #     else:
+    #         print("do_nothing instead of method", self.called_method)
 
     def __call__(self):
         '''Return a new bound-method like the original, or the
@@ -53,7 +53,9 @@ class WeakMethod:
                 return getattr(self.proxy, self.method_name)
         except ReferenceError:
             pass
-        return self.do_nothing if self.method is None else self.method
+        #return self.do_nothing if self.method is None else self.method
+        #print("method", self.method)
+        return self.method
 
     def is_dead(self):
         '''Returns True if the referenced callable was a bound method and
@@ -150,7 +152,7 @@ def fixBugs():
     wm.WeakMethod.is_dead = WeakMethod.is_dead
     wm.WeakMethod.__init__ = WeakMethod.__init__
     wm.WeakMethod.__call__ = WeakMethod.__call__
-    wm.WeakMethod.do_nothing = WeakMethod.do_nothing
+    #wm.WeakMethod.do_nothing = WeakMethod.do_nothing
 
     mv.MapView.on_touch_up = MapView.on_touch_up
     mv.MapView.on_transform = MapView.on_transform

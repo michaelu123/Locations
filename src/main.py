@@ -306,6 +306,7 @@ class Locations(MDApp):
         os.makedirs(dataDir + "/images", exist_ok=True)
         self.markerSet = set()
         self.settings_cls = SettingsWithSidebar
+        self.curMarker = None
 
         try:
             self.baseConfig = config.Config(self)
@@ -425,17 +426,18 @@ class Locations(MDApp):
 
     def msgDialog(self, titel, text):
         if self.dialog is not None:
-            self.dialog.dismiss()
+            self.dialog_dismiss()
         self.dialog = MDDialog(size_hint=(.8, .4), title=titel, text=text,
                                buttons=[
                                    MDFlatButton(
                                        text="Weiter", text_color=self.theme_cls.primary_color,
                                        on_press=self.dialog_dismiss
                                    )])
+        self.dialog.auto_dismiss = False
         self.dialog.open()
 
     def dialog_dismiss(self, *args):
-        self.dialog.dismiss()
+        self.dialog.dismiss(animation=False, force=True)
         self.dialog = None
 
     def center(self):
@@ -515,7 +517,7 @@ class Locations(MDApp):
         self.items = items
         buttons = [MDFlatButton(text="OK", text_color=self.theme_cls.primary_color, on_press=self.change_base)]
         if self.dialog is not None:
-            self.dialog.dismiss()
+            self.dialog_dismiss()
         self.dialog = MDDialog(size_hint=(.8, .4), type="confirmation", title="Auswahl der Datenbasis",
                                text="Bitte Datenbasis auswählen",
                                items=items, buttons=buttons)
@@ -565,7 +567,7 @@ class Locations(MDApp):
             return True
         if self.lastScreen is None:
             if self.dialog is not None:
-                self.dialog.dismiss()
+                self.dialog_dismiss()
             self.dialog = MDDialog(size_hint=(.8, .4), title="Beenden?", text="Möchten Sie die App beenden?",
                                    buttons=[
                                        MDFlatButton(

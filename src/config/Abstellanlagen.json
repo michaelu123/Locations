@@ -4,6 +4,7 @@
   "db_tabellenname": "abstellanlagen",
   "spreadsheet_id": "",
   "sheet_name": "",
+  "protected": false,
   "gps": {
     "min_lat": 48.0,
     "max_lat": 48.25,

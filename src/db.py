@@ -57,6 +57,8 @@ class DB():
             c.execute(stmt1)
             c.execute(stmt2)
 
+        if self.baseJS.get("zusatz",None) is None:
+            return
         fields = ["nr INTEGER PRIMARY KEY", "creator TEXT", "created TEXT", "modified TEXT",
                   "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING"]
         for feld in self.baseJS.get("zusatz"):
