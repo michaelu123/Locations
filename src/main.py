@@ -113,8 +113,10 @@ Builder.load_string(
                 text: "Lat: {}".format(round(mapview.lat, 6))
 
 <MyMapMarker>:
-    on_press: app.clickMarker(self)
-
+    on_touch_move: pass
+    #on_press: app.clickMarker(self)
+    on_release: app.clickMarker(self)
+    
 <Images>:
     id: images
     bl: bl
@@ -540,7 +542,7 @@ class Locations(MDApp):
     def clickMarker(self, marker):
         self.curMarker = marker
         self.center_on(marker.lat, marker.lon)
-        # self.show_data(True)
+        self.show_data(True)
 
     def do_capture(self, *args):
         if self.checkAlias():  # and self.root.sm.current_screen.name == "Data":

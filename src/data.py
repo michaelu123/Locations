@@ -92,21 +92,18 @@ class TextField(MDTextField):
         self.data.update(self.feldname, self.text, self.data.app.mapview.lat, self.data.app.mapview.lon)
 
 
-class Data(Screen):
-    image_list = ListProperty()
-
-    def __init__(self, app, **kwargs):
-        self.app = app
-        self.fieldsJS = self.app.baseJS.get("felder")
-        self.protected = self.app.baseJS.get("protected", False)
-        self.fields = {}
-        self.impath = utils.getDataDir() + "/images/"
-
-        self.image_list = ["./images/" + utils.photo_image_path]
-        self.dbinst = db.DB.instance()
-        super().__init__(**kwargs)
-
+class Form(Screen):
     def init(self):
+        std = [("created", "Erzeugt"), ("modified", "Geändert")]
+        for t in std:
+            tf = TextField(self, t[0])
+            tf.hint_text = t[1]
+            tf.helper_text = ""
+            tf.text = ""
+            tf.padding = "12dp"
+            tf.disabled = True
+            self.fields[t[0]] = tf
+            self.ids.bl.add_widget(tf, index=2)
         for fieldJS in self.fieldsJS:
             # tf=TextField(hint_text="xxx", ..) does not work!?
             name = fieldJS.get("name")
@@ -119,10 +116,32 @@ class Data(Screen):
             self.fields[name] = tf
             self.ids.bl.add_widget(tf, index=2)
 
-    def update(self, *args):
-        if checkProtected(self):
-            return
-        self.dbinst.update_data(*args)
+    def setValues(self, values):
+        if values is None:
+            for name in self.fields.keys():
+                field = self.fields[name]
+                field.text = ""
+                self.creator = self.dbinst.aliasname
+        else:
+            for name in self.fields.keys():
+                field = self.fields[name]
+                field.text = str(values[name])
+            self.creator = values["creator"]
+
+
+class Data(Form):
+    image_list = ListProperty()
+
+    def __init__(self, app, **kwargs):
+        self.app = app
+        self.fieldsJS = self.app.baseJS.get("daten").get("felder")
+        self.protected = self.app.baseJS.get("protected", False)
+        self.fields = {}
+        self.impath = utils.getDataDir() + "/images/"
+
+        self.image_list = ["./images/" + utils.photo_image_path]
+        self.dbinst = db.DB.instance()
+        super().__init__(**kwargs)
 
     def setData(self):
         # gc.collect()
@@ -146,19 +165,15 @@ class Data(Screen):
         # get data for lat/lon
         values = self.dbinst.get_data(self.lat, self.lon)
         print("data values", values, self.lat, self.lon)
-        if values is None:
-            for name in self.fields.keys():
-                field = self.fields[name]
-                field.text = ""
-                self.creator = self.dbinst.aliasname
-        else:
-            for name in self.fields.keys():
-                field = self.fields[name]
-                field.text = str(values[name])
-                # db entry may have come from a nearby lat, lon
-                self.lat = values["lat"]
-                self.lon = values["lon"]
-            self.creator = values["creator"]
+        self.setValues(values)
+        if values is not None:
+            self.lat = values["lat"]
+            self.lon = values["lon"]
+
+    def update(self, *args):
+        if checkProtected(self):
+            return
+        self.dbinst.update_data(*args)
 
     def clear(self, *args):
         if checkProtected(self):
@@ -185,27 +200,15 @@ class Data(Screen):
             self.app.pushScreen("Zusatz")
 
 
-class Zusatz(Screen):
+class Zusatz(Form):
     def __init__(self, app, **kwargs):
         self.app = app
-        self.fieldsJS = self.app.baseJS.get("zusatz", [])
+        zusatz = self.app.baseJS.get("zusatz", None)
+        self.fieldsJS = [] if zusatz is None else zusatz.get("felder", [])
         self.protected = self.app.baseJS.get("protected", False)
         self.fields = {}
         self.dbinst = db.DB.instance()
         super().__init__(**kwargs)
-
-    def init(self):
-        for fieldJS in self.fieldsJS:
-            # tf=TextField(hint_text="xxx", ..) does not work!?
-            name = fieldJS.get("name")
-            tf = TextField(self, name)
-            tf.hint_text = fieldJS.get("hint_text")
-            tf.helper_text = fieldJS.get("helper_text")
-            tf.text = ""
-            tf.helper_text_mode = "on_focus"
-            tf.padding = "12dp"
-            self.fields[name] = tf
-            self.ids.bl.add_widget(tf, index=1)
 
     def update(self, *args):
         if checkProtected(self):
@@ -224,9 +227,7 @@ class Zusatz(Screen):
         self.lat, self.lon = mv.lat, mv.lon
         self.numbers = self.dbinst.get_zusatz_numbers(self.lat, self.lon)
         if len(self.numbers) == 0:
-            for name in self.fields.keys():
-                field = self.fields[name]
-                field.text = ""
+            self.setValues(None)
             self.number = None
             self.creator = self.dbinst.aliasname
         else:
@@ -240,10 +241,7 @@ class Zusatz(Screen):
         nr = self.numbers[self.number]
         values = self.dbinst.get_zusatz(nr)
         print("zusatz values", values)
-        for name in self.fields.keys():
-            field = self.fields[name]
-            field.text = str(values[name])
-        self.creator = values["creator"]
+        self.setValues(values)
 
     def clear(self, *args):
         if self.numbers is None or self.number is None:

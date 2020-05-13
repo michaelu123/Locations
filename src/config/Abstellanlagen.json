@@ -15,62 +15,75 @@
     "nachkommastellen": 5,
     "min_zoom": 11
   },
-  "felder": [
-    {
-      "name": "ort",
-      "hint_text": "Ort",
-      "helper_text": "Platz, Straße, Haltestelle",
-      "type": "string"
-    },
-    {
-      "name": "anlagentyp",
-      "hint_text": "Anlagentyp",
-      "helper_text": "Vorderradhalter, Anlehnparker",
-      "type": "string"
-    },
-    {
-      "name": "anzahl",
-      "hint_text": "Ständer",
-      "helper_text": "Anzahl an Ständern",
-      "type": "int"
-    },
-    {
-      "name": "schrott",
-      "hint_text": "Schrottfahrräder",
-      "helper_text": "Anzahl an Schrottfahrrädern",
-      "type": "int"
-    },
-    {
-      "name": "zustand",
-      "hint_text": "Zustand",
-      "helper_text": "gut/beschädigt/unbrauchbar",
-      "type": "string"
-    },
-    {
-      "name": "bemerkung",
-      "hint_text": "Bemerkung",
-      "helper_text": "Sonstiges",
-      "type": "string"
-    }
-  ],
-  "zusatz": [
-    {
-      "name": "wetter",
-      "hint_text": "Wetter",
-      "helper_text": "gut, mittel, schlecht",
-      "type": "string"
-    },
-    {
-      "name": "füllgrad",
-      "hint_text": "Füllgrad in Prozent",
-      "helper_text": "Füllgrad in Prozent",
-      "type": "int"
-    },
-    {
-      "name": "bemerkung",
-      "hint_text": "Bemerkung",
-      "helper_text": "Sonstiges",
-      "type": "string"
-    }
-  ]
+  "daten": {
+    "protected": false,
+    "felder": [
+      {
+        "name": "ort",
+        "hint_text": "Ort",
+        "helper_text": "Platz, Straße, Haltestelle",
+        "type": "string"
+      },
+      {
+        "name": "anlagentyp",
+        "hint_text": "Anlagentyp",
+        "helper_text": "Vorderradhalter, Anlehnparker",
+        "type": "string"
+      },
+      {
+        "name": "anzahl",
+        "hint_text": "Ständer",
+        "helper_text": "Anzahl an Ständern",
+        "type": "int"
+      },
+      {
+        "name": "schrott",
+        "hint_text": "Schrottfahrräder",
+        "helper_text": "Anzahl an Schrottfahrrädern",
+        "type": "int"
+      },
+      {
+        "name": "zustand",
+        "hint_text": "Zustand",
+        "helper_text": "gut/beschädigt/unbrauchbar",
+        "type": "string"
+      },
+      {
+        "name": "bedacht",
+        "hint_text": "Bedacht",
+        "helper_text": "Ja/Nein",
+        "type": "string"
+      },
+      {
+        "name": "bemerkung",
+        "hint_text": "Bemerkung",
+        "helper_text": "Sonstiges",
+        "type": "string"
+      }
+    ]
+  },
+  "zusatz": {
+    "protected": false,
+    "felder": [
+      {
+        "name": "wetter",
+        "hint_text": "Wetter",
+        "helper_text": "gut, mittel, schlecht",
+        "type": "string"
+      },
+      {
+        "name": "füllgrad",
+        "hint_text": "Füllgrad in Prozent",
+        "helper_text": "Füllgrad in Prozent",
+        "type": "int"
+      },
+      {
+        "name": "bemerkung",
+        "hint_text": "Bemerkung",
+        "helper_text": "Sonstiges",
+        "type": "string"
+      }
+    ]
+  }
 }
+

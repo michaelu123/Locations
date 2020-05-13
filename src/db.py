@@ -1,11 +1,13 @@
 import sqlite3
-import time
 import threading
+import time
+
 import utils
 
 sqtype = {"int": "INTEGER", "string": "TEXT", "float": "REAL"}
 nullval = {"int": 0, "string": "", "float": 0.0}
 threadLocal = threading.local()
+
 
 class DB():
     _dbinst = None
@@ -38,38 +40,44 @@ class DB():
 
         fields = ["creator TEXT", "created TEXT", "modified TEXT", "lat REAL", "lon REAL", "lat_round STRING",
                   "lon_round STRING"]
-        for feld in self.baseJS.get("felder"):
+        for feld in self.baseJS.get("daten").get("felder"):
             fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
         fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT FAIL")
-        stmt1 = "CREATE TABLE IF NOT EXISTS " +  self.tabellenname + "_data (" + ", ".join(fields) + ")"
+        stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_data (" + ", ".join(fields) + ")"
+        stmt2 = "CREATE INDEX IF NOT EXISTS latlon_data ON " + self.tabellenname + "_data (lat, lon)";
 
         conn = self.getConn()
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
+            c.execute(stmt2)
 
         fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
                   "image_path STRING"]
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
-        stmt2 = "CREATE INDEX IF NOT EXISTS latlon_images ON " + self.tabellenname + "_images (lat_round, lon_round)";
+        stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_images ON " + self.tabellenname + "_images (lat_round, lon_round)";
+        stmt3 = "CREATE INDEX IF NOT EXISTS latlon_images ON " + self.tabellenname + "_images (lat, lon)";
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
+            c.execute(stmt3)
 
-        if self.baseJS.get("zusatz",None) is None:
+        if self.baseJS.get("zusatz", None) is None:
             return
         fields = ["nr INTEGER PRIMARY KEY", "creator TEXT", "created TEXT", "modified TEXT",
                   "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING"]
-        for feld in self.baseJS.get("zusatz"):
+        for feld in self.baseJS.get("zusatz").get("felder"):
             fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_zusatz (" + ", ".join(fields) + ")"
-        stmt2 = "CREATE INDEX IF NOT EXISTS latlon_zusatz ON " + self.tabellenname + "_zusatz (lat_round, lon_round)";
+        stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_zusatz ON " + self.tabellenname + "_zusatz (lat_round, lon_round)";
+        stmt3 = "CREATE INDEX IF NOT EXISTS latlon_zusatz ON " + self.tabellenname + "_zusatz (lat, lon)";
 
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
+            c.execute(stmt3)
 
     def get_data(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
@@ -98,7 +106,7 @@ class DB():
     def update_data(self, name, text, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
-        now = time.strftime("%Y%m%d_%H%M%S")
+        now = time.strftime("%Y.%m.%d %H:%M:%S")
         try:
             conn = self.getConn()
             with conn:
@@ -110,7 +118,7 @@ class DB():
                 if r1.rowcount == 0:  # row did not yet exist
                     vals = {"creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
-                    for feld in self.baseJS.get("felder"):
+                    for feld in self.baseJS.get("daten").get("felder"):
                         vals[feld.get("name")] = nullval[feld.get("type")]
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
@@ -118,6 +126,47 @@ class DB():
                     self.app.add_marker(lat, lon)
         except Exception as e:
             utils.printEx("update_data:", e)
+
+    def insert_data_from_osm(self, values): # values = { [lat,lon]: properties }
+        conn = self.getConn()
+        try:
+            with conn:
+                c = conn.cursor()
+                # just to get the column names...
+                r = c.execute("SELECT * from " + self.tabellenname + "_data WHERE lat_round=0 and lon_round=0")
+                c.fetchone()
+                colnames = [":" + t[0] for t in c.description]
+        except Exception as e:
+            utils.printEx("insert_data_from_osm:", e)
+
+        now = time.strftime("%Y.%m.%d %H:%M:%S")
+        for value in values.items():
+            lon = value[0][0]
+            lat = value[0][1]
+            lat_round = str(round(lat, self.stellen))
+            lon_round = str(round(lon, self.stellen))
+            value = value[1]
+
+            vals = {}
+            for feld in self.baseJS.get("daten").get("felder"):
+                vals[feld.get("name")] = nullval[feld.get("type")]
+            vals["lat"] = lat
+            vals["lon"] = lon
+            vals["lat_round"] = lat_round
+            vals["lon_round"] = lon_round
+            vals["creator"] = "OSM"
+            vals["created"] = now
+            vals["modified"] = now
+            vals.update(value)
+
+            try:
+                with conn:
+                    c = conn.cursor()
+                    c.execute("INSERT INTO " + self.tabellenname + "_data VALUES(" + ",".join(colnames) + ")", vals)
+            except sqlite3.IntegrityError as e:
+                print("duplicate", vals)
+                utils.printEx("insert_data_from_osm:", e)
+
 
     def get_zusatz(self, nr):
         conn = self.getConn()
@@ -138,8 +187,9 @@ class DB():
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            r = c.execute("SELECT nr from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ?",
-                      (lat_round, lon_round))
+            r = c.execute(
+                "SELECT nr from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ? ORDER BY nr",
+                (lat_round, lon_round))
             res = [t[0] for t in r]
             return res
 
@@ -147,10 +197,10 @@ class DB():
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            c.execute("DELETE from " + self.tabellenname + "_zusatz WHERE nr = ?", (nr, ))
+            c.execute("DELETE from " + self.tabellenname + "_zusatz WHERE nr = ?", (nr,))
 
     def update_zusatz(self, nr, name, text, lat, lon):
-        now = time.strftime("%Y%m%d_%H%M%S")
+        now = time.strftime("%Y.%m.%d %H:%M:%S")
         rowid = nr
         try:
             conn = self.getConn()
@@ -164,9 +214,10 @@ class DB():
                 if not nr or r1.rowcount == 0:  # row did not yet exist
                     lat_round = str(round(lat, self.stellen))
                     lon_round = str(round(lon, self.stellen))
-                    vals = {"nr": None, "creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
+                    vals = {"nr": None, "creator": self.aliasname, "created": now, "modified": now, "lat": lat,
+                            "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
-                    for feld in self.baseJS.get("zusatz"):
+                    for feld in self.baseJS.get("zusatz").get("felder"):
                         vals[feld.get("name")] = nullval[feld.get("type")]
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
@@ -192,7 +243,7 @@ class DB():
     def insert_image(self, filename, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
-        now = time.strftime("%Y%m%d_%H%M%S")
+        now = time.strftime("%Y.%m.%d %H:%M:%S")
         try:
             conn = self.getConn()
             with conn:
@@ -216,7 +267,8 @@ class DB():
         with conn:
             c = conn.cursor()
             c.execute("DELETE from " + self.tabellenname +
-                      "_images WHERE lat_round = ? and lon_round = ? and image_path=?", (lat_round, lon_round, image_path))
+                      "_images WHERE lat_round = ? and lon_round = ? and image_path=?",
+                      (lat_round, lon_round, image_path))
             # print("deleted rows", c.rowcount)
 
     def getMarkerLocs(self):
@@ -227,7 +279,9 @@ class DB():
             vals_data = set(c.fetchall())
             c.execute("SELECT lat, lon from " + self.tabellenname + "_images")
             vals_images = set(c.fetchall())
-            return vals_data.union(vals_images)
+            c.execute("SELECT lat, lon from " + self.tabellenname + "_zusatz")
+            vals_zusatz = set(c.fetchall())
+            return vals_data.union(vals_images).union(vals_zusatz)
 
     def existsLatLon(self, lat, lon):
         conn = self.getConn()
@@ -237,6 +291,9 @@ class DB():
             if len(list(r)) > 0:
                 return True
             r = c.execute("SELECT lat from " + self.tabellenname + "_images WHERE lat = ? and lon = ?", (lat, lon))
+            if len(list(r)) > 0:
+                return True
+            r = c.execute("SELECT lat from " + self.tabellenname + "_zusatz WHERE lat = ? and lon = ?", (lat, lon))
             if len(list(r)) > 0:
                 return True
             return False
