@@ -44,24 +44,20 @@ class DB():
             fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
         fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT FAIL")
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_data (" + ", ".join(fields) + ")"
-        stmt2 = "CREATE INDEX IF NOT EXISTS latlon_data ON " + self.tabellenname + "_data (lat, lon)";
 
         conn = self.getConn()
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
-            c.execute(stmt2)
 
         fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
                   "image_path STRING"]
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
         stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_images ON " + self.tabellenname + "_images (lat_round, lon_round)";
-        stmt3 = "CREATE INDEX IF NOT EXISTS latlon_images ON " + self.tabellenname + "_images (lat, lon)";
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
-            c.execute(stmt3)
 
         if self.baseJS.get("zusatz", None) is None:
             return
@@ -71,13 +67,11 @@ class DB():
             fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_zusatz (" + ", ".join(fields) + ")"
         stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_zusatz ON " + self.tabellenname + "_zusatz (lat_round, lon_round)";
-        stmt3 = "CREATE INDEX IF NOT EXISTS latlon_zusatz ON " + self.tabellenname + "_zusatz (lat, lon)";
 
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
-            c.execute(stmt3)
 
     def get_data(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
@@ -94,7 +88,7 @@ class DB():
             r = dict(zip(cols, vals))
             return r
 
-    def delete_data(self, tabellensuffix, lat, lon):
+    def delete_data(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
         conn = self.getConn()
@@ -123,11 +117,11 @@ class DB():
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_data VALUES(" + ",".join(colnames) + ")", vals)
-                    self.app.add_marker(lat, lon)
+                    self.app.add_marker(lat, lon, self.existsImage(lat_round, lon_round))
         except Exception as e:
             utils.printEx("update_data:", e)
 
-    def insert_data_from_osm(self, values): # values = { [lat,lon]: properties }
+    def insert_data_from_osm(self, values):  # values = { [lat,lon]: properties }
         conn = self.getConn()
         try:
             with conn:
@@ -166,7 +160,6 @@ class DB():
             except sqlite3.IntegrityError as e:
                 print("duplicate", vals)
                 utils.printEx("insert_data_from_osm:", e)
-
 
     def get_zusatz(self, nr):
         conn = self.getConn()
@@ -223,7 +216,7 @@ class DB():
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(colnames) + ")", vals)
                     rowid = c.lastrowid
-                    self.app.add_marker(lat, lon)
+                    self.app.add_marker(lat, lon, self.existsImage(lat_round, lon_round))
             return rowid
         except Exception as e:
             utils.printEx("update_zusatz:", e)
@@ -256,7 +249,7 @@ class DB():
                         "lat_round": lat_round, "lon_round": lon_round, "image_path": filename}
                 colnames = [":" + k for k in vals.keys()]
                 c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(colnames) + ")", vals)
-                self.app.add_marker(lat, lon)
+                self.app.add_marker(lat, lon, True)
         except Exception as e:
             utils.printEx("insert_image:", e)
 
@@ -281,19 +274,34 @@ class DB():
             vals_images = set(c.fetchall())
             c.execute("SELECT lat, lon from " + self.tabellenname + "_zusatz")
             vals_zusatz = set(c.fetchall())
-            return vals_data.union(vals_images).union(vals_zusatz)
+            return (vals_images, vals_data.union(vals_zusatz).difference(vals_images))
 
     def existsLatLon(self, lat, lon):
+        lat_round = str(round(lat, self.stellen))
+        lon_round = str(round(lon, self.stellen))
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            r = c.execute("SELECT lat from " + self.tabellenname + "_data WHERE lat = ? and lon = ?", (lat, lon))
+            r = c.execute("SELECT lat_round from " + self.tabellenname + "_data WHERE lat_round = ? and lon_round = ?",
+                          (lat_round, lon_round))
             if len(list(r)) > 0:
                 return True
-            r = c.execute("SELECT lat from " + self.tabellenname + "_images WHERE lat = ? and lon = ?", (lat, lon))
+            r = c.execute(
+                "SELECT lat_round from " + self.tabellenname + "_images WHERE lat_round = ? and lon_round = ?",
+                (lat_round, lon_round))
             if len(list(r)) > 0:
                 return True
-            r = c.execute("SELECT lat from " + self.tabellenname + "_zusatz WHERE lat = ? and lon = ?", (lat, lon))
+            r = c.execute(
+                "SELECT lat_round from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ?",
+                (lat_round, lon_round))
             if len(list(r)) > 0:
                 return True
             return False
+
+    def existsImage(self, lat_round, lon_round):
+        conn = self.getConn()
+        with conn:
+            c = conn.cursor()
+            r = c.execute("SELECT lat from " + self.tabellenname + "_images WHERE lat_round = ? and lon_round = ?",
+                          (lat_round, lon_round))
+            return len(list(r)) > 0

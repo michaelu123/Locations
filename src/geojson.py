@@ -8,29 +8,75 @@ paths = [r"C:\Users\Michael\Downloads\2020-04-26_Fahrradabstellplätze_München_
          r"C:\Users\Michael\Downloads\2020-04-26_Fahrradabstellplätze_München_Flächen.geojson",
          r"C:\Users\Michael\Downloads\2020-04-26_Fahrradabstellplätze_München_Linien.geojson"]
 translate = {
-    'source:capacity': "",
-    'bicycle': "",
-    'note:total_capacity': "",
-    'addr:housenumber': "",
-    'bicycle_parking': "anlagentyp",
-    'name': "name",
-    'description': "bemerkung",
-    'maxstay': "",  # ??
-    'covered': "bedacht",
-    'opening_hours': "",
-    'shelter': "bedacht",
-    'description:de': "bemerkung",
-    'addr:street': "ort",
-    'addr:postcode': "",
-    'capacity': "anzahl",
-    'yes': "Ja",
-    'no': "Nein",
-    'stands': "Ständer",  # ??
-    'rack': "Träger",  # ??
-    'wall_loops': "Wandschlaufen",  # ??
-    'building': "Gebäude",
+    'addr:housenumber': '',
+    'addr:postcode': '',
+    'addr:street': 'ort',
+    'anchors': 'Anker',
+    'bicycle': '',
+    'bicycle_parking': 'anlagentyp',
+    'building': 'Gebäude',
+    'capacity': 'anzahl',
+    'covered': 'bedacht',
+    'description': 'bemerkung',
+    'description:de': 'bemerkung',
+    'front_wheel': 'Vorderradhalter',
+    'front_wheel_only': 'Vorderradhalter',
+    'ground_slots': 'Erdschlitze',
+    'hooks': 'Haken',
+    'informal': 'Informell',
+    'loops': 'Wendel',
+    'maxstay': '',
+    'multi-storey_racks': 'Mehrstöckig',
+    'multistorey': 'Mehrstöckig',
+    'name': 'name',
+    'no': 'Nein',
+    'note:total_capacity': '',
+    'opening_hours': '',
+    'rack': 'Träger',
+    'scooter_parking': 'Scooter-Parkplatz',
+    'shed': 'Schuppen',
+    'shelter': 'bedacht',
+    'source:capacity': '',
+    'stands': 'Ständer',
+    'wall_loops': 'Wandschlaufen',
+    'wide_stands': 'BreiteStänder',
+    'yes': 'Ja',
 }
-
+translate = {
+    'addr:housenumber': '',
+    'addr:postcode': '',
+    'addr:street': 'ort',
+    'anchors': 'Anker',
+    'bicycle': '',
+    'bicycle_parking': 'anlagentyp',
+    'building': 'Gebäude',
+    'capacity': 'anzahl',
+    'covered': 'bedacht',
+    'description': 'bemerkung',
+    'description:de': 'bemerkung',
+    'front_wheel': 'Vorderradhalter',
+    'front_wheel_only': 'Vorderradhalter',
+    'ground_slots': 'Erdschlitze',
+    'hooks': 'Haken',
+    'informal': 'Informell',
+    'loops': 'Wendel',
+    'maxstay': '',
+    'multi-storey_racks': 'Mehrstöckig',
+    'multistorey': 'Mehrstöckig',
+    'name': 'name',
+    'no': 'Nein',
+    'note:total_capacity': '',
+    'opening_hours': '',
+    'rack': 'Träger',
+    'scooter_parking': 'Scooter-Parkplatz',
+    'shed': 'Schuppen',
+    'shelter': 'bedacht',
+    'source:capacity': '',
+    'stands': 'Ständer',
+    'wall_loops': 'Wandschlaufen',
+    'wide_stands': 'BreiteStänder',
+    'yes': 'Ja',
+}
 
 def conv():
     propSet = set()
@@ -93,7 +139,7 @@ class OSM:
         self.dbinst.initDB(self)
         values = conv()
         self.dbinst.insert_data_from_osm(values)
-
+        # duplicate: 48.12553483, 11.66346097
 
 osm = OSM()
 osm.main()

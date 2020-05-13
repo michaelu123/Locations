@@ -28,7 +28,27 @@
         "name": "anlagentyp",
         "hint_text": "Anlagentyp",
         "helper_text": "Vorderradhalter, Anlehnparker",
-        "type": "string"
+        "type": "string",
+        "limited": [
+          "Vorderradhalter",
+          "Anlehnparker",
+          "Ständer",
+          "Wandschlaufen",
+          "Anker",
+          "Träger",
+          "Erdschlitze",
+          "Schuppen",
+          "Waldheim",
+          "BreiteStänder",
+          "Haken",
+          "Vorderradhalter",
+          "Wendel",
+          "Mehrstöckig",
+          "Gebäude",
+          "Informell",
+          "Mehrstöckig",
+          "Scooter-Parkplatz"
+        ]
       },
       {
         "name": "anzahl",
@@ -52,7 +72,8 @@
         "name": "bedacht",
         "hint_text": "Bedacht",
         "helper_text": "Ja/Nein",
-        "type": "string"
+        "type": "string",
+        "limited": ["Ja", "Nein"]
       },
       {
         "name": "bemerkung",

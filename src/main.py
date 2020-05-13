@@ -306,7 +306,7 @@ class Locations(MDApp):
         Window.bind(on_keyboard=self.popScreen)
         dataDir = utils.getDataDir()
         os.makedirs(dataDir + "/images", exist_ok=True)
-        self.markerSet = set()
+        self.markerMap = {}
         self.settings_cls = SettingsWithSidebar
         self.curMarker = None
 
@@ -375,8 +375,10 @@ class Locations(MDApp):
         self.root.sm.add_widget(self.account)
 
         markers = self.dbinst.getMarkerLocs()
-        for marker in markers:
-            self.mapview.add_marker(MyMapMarker(lat=marker[0], lon=marker[1], nocache=True))
+        for marker in markers[0]: # with images: red
+            self.add_marker(marker[0], marker[1], True)
+        for marker in markers[1]: # without images: blue
+            self.add_marker(marker[0], marker[1], False)
         self.center()
         self.pushScreen("Karte")
         try:
@@ -533,11 +535,16 @@ class Locations(MDApp):
             if check != instance_check:
                 check.active = False
 
-    def add_marker(self, lat, lon):
-        if (lat, lon) in self.markerSet:
-            return
-        self.markerSet.add((lat, lon))
-        self.mapview.add_marker(MyMapMarker(lat=lat, lon=lon))
+    def add_marker(self, lat, lon, red):
+        markerOld = self.markerMap.get((lat, lon), None)
+        if red: # with image
+            markerNew = MyMapMarker(lat=lat, lon=lon)
+        else: #no image
+            markerNew = MyMapMarker(lat=lat, lon=lon, source="icons/marker_blue.png")
+        if markerOld is not None:
+            self.mapview.remove_marker(markerOld)
+        self.mapview.add_marker(markerNew)
+        self.markerMap[(lat,lon)] = markerNew
 
     def clickMarker(self, marker):
         self.curMarker = marker
