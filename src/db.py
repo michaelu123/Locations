@@ -5,7 +5,6 @@ import time
 import utils
 
 sqtype = {"int": "INTEGER", "string": "TEXT", "float": "REAL"}
-nullval = {"int": 0, "string": "", "float": 0.0}
 threadLocal = threading.local()
 
 
@@ -113,7 +112,7 @@ class DB():
                     vals = {"creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
                     for feld in self.baseJS.get("daten").get("felder"):
-                        vals[feld.get("name")] = nullval[feld.get("type")]
+                        vals[feld.get("name")] = None
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_data VALUES(" + ",".join(colnames) + ")", vals)
@@ -133,7 +132,7 @@ class DB():
         except Exception as e:
             utils.printEx("insert_data_from_osm:", e)
 
-        now = time.strftime("%Y.%m.%d %H:%M:%S")
+        #now = time.strftime("%Y.%m.%d %H:%M:%S")
         for value in values.items():
             lon = value[0][0]
             lat = value[0][1]
@@ -143,14 +142,14 @@ class DB():
 
             vals = {}
             for feld in self.baseJS.get("daten").get("felder"):
-                vals[feld.get("name")] = nullval[feld.get("type")]
+                vals[feld.get("name")] = None
             vals["lat"] = lat
             vals["lon"] = lon
             vals["lat_round"] = lat_round
             vals["lon_round"] = lon_round
             vals["creator"] = "OSM"
-            vals["created"] = now
-            vals["modified"] = now
+            vals["created"] = "OSM" #now
+            vals["modified"] = "OSM" #now
             vals.update(value)
 
             try:
@@ -211,7 +210,7 @@ class DB():
                             "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
                     for feld in self.baseJS.get("zusatz").get("felder"):
-                        vals[feld.get("name")] = nullval[feld.get("type")]
+                        vals[feld.get("name")] = None
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(colnames) + ")", vals)

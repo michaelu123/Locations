@@ -25,6 +25,7 @@ from kivymd.uix.list import OneLineAvatarIconListItem
 import bugs
 import config
 import db
+import gsheets
 import utils
 from data import Data, Zusatz
 from kamera import Kamera
@@ -332,7 +333,6 @@ class Locations(MDApp):
         return self.root
 
     def setup(self, base):
-        # gc.collect()
         self.selected_base = base
         self.root.toolbar.title = self.selected_base
         self.root.datenbtn.text = self.selected_base
@@ -353,6 +353,7 @@ class Locations(MDApp):
         self.mapview = self.karte.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = self.baseConfig.getMinZoom(self.selected_base)
+        self.mapview.map_source.max_zoom = 19
         self.mapview.map_source.bounds = self.baseConfig.getGPSArea(self.selected_base)
         # Hack, trying to fix random zoom bug
         self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
@@ -451,7 +452,7 @@ class Locations(MDApp):
         self.center_on(lat, lon)
 
     def center_on(self, lat, lon):
-        self.mapview.set_zoom_at(17, 0, 0, 2.0)
+        self.mapview.set_zoom_at(18, 0, 0, 2.0)
         self.mapview.center_on(lat, lon)
         self.mapview.lat = lat
         self.mapview.lon = lon
@@ -494,12 +495,13 @@ class Locations(MDApp):
         return True
 
     def on_stop(self):
+        print("on_stop")
         return self.on_pause()
 
     def on_resume(self):
         print("on_resume")
-        base = self.store.get("base")["base"]
-        self.setup(base)
+        #base = self.store.get("base")["base"]
+        #self.setup(base)
         return True
 
     def change_base(self, *args):

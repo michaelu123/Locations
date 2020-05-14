@@ -10,8 +10,8 @@
     "max_lat": 48.25,
     "min_lon": 11.4,
     "max_lon": 11.8,
-    "center_lat": 48.13724404,
-    "center_lon": 11.57617109,
+    "center_lat": 48.137235,
+    "center_lon": 11.57554,
     "nachkommastellen": 5,
     "min_zoom": 11
   },
@@ -69,8 +69,8 @@
         "type": "string"
       },
       {
-        "name": "bedacht",
-        "hint_text": "Bedacht",
+        "name": "überdacht",
+        "hint_text": "Überdacht",
         "helper_text": "Ja/Nein",
         "type": "string",
         "limited": ["Ja", "Nein"]

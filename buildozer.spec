@@ -28,7 +28,8 @@ source.include_patterns = assets/*,images/*,icons/*,config/*
 source.exclude_dirs = tests, bin, buildozer
 
 # (list) List of exclusions using pattern matching
-#source.exclude_patterns = license,images/*/*.jpg
+#source.exclude_patterns = license,images/*/*.jpg,cache/osm-de/*.png
+source.exclude_patterns = cache/*.png
 
 # (str) Application versioning (method 1)
 version = 0.1
@@ -39,7 +40,9 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,kivymd,openpyxl,sqlite3,jdcal,et_xmlfile,plyer,requests,mapview
+requirements = python3,kivy,kivymd,openpyxl,sqlite3,jdcal,et_xmlfile,plyer,requests,mapview,httplib2,cachetools,\
+    pyasn1,pyasn1_modules,rsa,requests_oauthlib,oauthlib,uritemplate,\
+    google-api-python-client,google-auth-httplib2,google-auth-oauthlib,google-api-core,google-auth,googleapis-common-protos
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes

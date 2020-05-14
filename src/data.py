@@ -125,7 +125,8 @@ class Form(Screen):
         else:
             for name in self.fields.keys():
                 field = self.fields[name]
-                field.text = str(values[name])
+                v = values[name]
+                field.text = "" if v is None else str(v)
             self.creator = values["creator"]
 
 
