@@ -4,7 +4,7 @@ import time
 
 import utils
 
-sqtype = {"int": "INTEGER", "string": "TEXT", "float": "REAL"}
+sqtype = {"int": "INTEGER", "bool": "INTEGER", "prozent": "INTEGER", "string": "TEXT", "float": "REAL"}
 threadLocal = threading.local()
 
 
@@ -111,12 +111,13 @@ class DB():
                 if r1.rowcount == 0:  # row did not yet exist
                     vals = {"creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
-                    for feld in self.baseJS.get("daten").get("felder"):
+                    felder = self.baseJS.get("daten").get("felder")
+                    for feld in felder:
                         vals[feld.get("name")] = None
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_data VALUES(" + ",".join(colnames) + ")", vals)
-                    self.app.add_marker(lat, lon, self.existsImage(lat_round, lon_round))
+            self.app.add_marker(lat, lon)
         except Exception as e:
             utils.printEx("update_data:", e)
 
@@ -215,7 +216,7 @@ class DB():
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(colnames) + ")", vals)
                     rowid = c.lastrowid
-                    self.app.add_marker(lat, lon, self.existsImage(lat_round, lon_round))
+            self.app.add_marker(lat, lon)
             return rowid
         except Exception as e:
             utils.printEx("update_zusatz:", e)
@@ -248,7 +249,7 @@ class DB():
                         "lat_round": lat_round, "lon_round": lon_round, "image_path": filename}
                 colnames = [":" + k for k in vals.keys()]
                 c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(colnames) + ")", vals)
-                self.app.add_marker(lat, lon, True)
+            self.app.add_marker(lat, lon)
         except Exception as e:
             utils.printEx("insert_image:", e)
 
@@ -267,40 +268,50 @@ class DB():
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            c.execute("SELECT lat, lon from " + self.tabellenname + "_data")
+            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_data")
             vals_data = set(c.fetchall())
-            c.execute("SELECT lat, lon from " + self.tabellenname + "_images")
+            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_images")
             vals_images = set(c.fetchall())
-            c.execute("SELECT lat, lon from " + self.tabellenname + "_zusatz")
+            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_zusatz")
             vals_zusatz = set(c.fetchall())
-            return (vals_images, vals_data.union(vals_zusatz).difference(vals_images))
+            return vals_images.union(vals_data).union(vals_zusatz)
 
-    def existsLatLon(self, lat, lon):
+    def existsImage(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
-        conn = self.getConn()
-        with conn:
-            c = conn.cursor()
-            r = c.execute("SELECT lat_round from " + self.tabellenname + "_data WHERE lat_round = ? and lon_round = ?",
-                          (lat_round, lon_round))
-            if len(list(r)) > 0:
-                return True
-            r = c.execute(
-                "SELECT lat_round from " + self.tabellenname + "_images WHERE lat_round = ? and lon_round = ?",
-                (lat_round, lon_round))
-            if len(list(r)) > 0:
-                return True
-            r = c.execute(
-                "SELECT lat_round from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ?",
-                (lat_round, lon_round))
-            if len(list(r)) > 0:
-                return True
-            return False
-
-    def existsImage(self, lat_round, lon_round):
         conn = self.getConn()
         with conn:
             c = conn.cursor()
             r = c.execute("SELECT lat from " + self.tabellenname + "_images WHERE lat_round = ? and lon_round = ?",
                           (lat_round, lon_round))
             return len(list(r)) > 0
+
+    def getRedYellowGreen(self, lat, lon):
+        vals = self.get_data(lat, lon)
+        if vals is None:
+            return None
+        good = 0
+        for f in ["abschließbar", "anlehnbar", "abstand", "ausparken", "geschützt"]:
+            if vals[f]:
+                good += 1
+        if good == 5 and vals["zustand"] == "hoch":
+            return "green"
+        if good >= 2 and vals["zustand"] is not None and vals["zustand"] != "niedrig":
+            return "yellow"
+        return "red"
+
+    def existsDataOrZusatz(self, lat, lon):
+        lat_round = str(round(lat, self.stellen))
+        lon_round = str(round(lon, self.stellen))
+        conn = self.getConn()
+        with conn:
+            c = conn.cursor()
+            r = c.execute("SELECT lat from " + self.tabellenname + "_data WHERE lat_round = ? and lon_round = ?",
+                          (lat_round, lon_round))
+            if len(list(r)) > 0:
+                return True
+            r = c.execute("SELECT lat from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ?",
+                          (lat_round, lon_round))
+            if len(list(r)) > 0:
+                return True
+        return False

@@ -13,10 +13,10 @@ translate = {
     'addr:street': 'ort',
     'anchors': 'Anker',
     'bicycle': '',
-    'bicycle_parking': 'anlagentyp',
+    'bicycle_parking': 'bemerkung', #'anlagentyp',
     'building': 'Gebäude',
     'capacity': 'anzahl',
-    'covered': 'überdacht',
+    'covered': 'geschützt',
     'description': 'bemerkung',
     'description:de': 'bemerkung',
     'front_wheel': 'Vorderradhalter',
@@ -28,60 +28,21 @@ translate = {
     'maxstay': '',
     'multi-storey_racks': 'Mehrstöckig',
     'multistorey': 'Mehrstöckig',
-    'name': 'name',
-    'no': 'Nein',
+    'name': 'ort',
+    'no': 0,
+    'partial': 1,
     'note:total_capacity': '',
     'opening_hours': '',
     'rack': 'Träger',
     'scooter_parking': 'Scooter-Parkplatz',
     'shed': 'Schuppen',
-    'shelter': 'überdacht',
+    'shelter': 'geschützt',
     'source:capacity': '',
     'stands': 'Ständer',
     'wall_loops': 'Wandschlaufen',
     'wide_stands': 'BreiteStänder',
-    'yes': 'Ja',
+    'yes': 1,
 }
-
-def conv():
-    propSet = set()
-    nrTotal = 0
-    nrProps = 0
-    res = {}
-    for path in paths:
-        with open(path, "r") as jsonFile:
-            geoJS = json.load(jsonFile)
-            featuresJS = geoJS.get("features")
-            print("Path", path)
-            for featureJS in featuresJS:
-                geomJS = featureJS.get("geometry")
-                geoType = geomJS.get("type")
-                geoCoords = geomJS.get("coordinates")
-                coord = mean(geoCoords)
-
-                nrTotal += 1
-                geoProps = featureJS.get("properties")
-                valuesStr = []
-                values = {}
-                for p in ["bicycle_parking", "capacity", "covered", "shelter", "name", "description",
-                          "source:capacity", "bicycle", "note:total_capacity", "description:de",
-                          "maxstay", "addr:housenumber", "addr:postcode", "addr:street", "opening_hours"]:
-                    v = geoProps.get(p)
-                    if v:
-                        # v = codecs.decode(v, encoding = "unicode_escape")
-                        v = codecs.encode(v, "Windows-1252")
-                        v = codecs.decode(v, "utf-8")
-                        valuesStr.append(p + ":" + v)
-                        propSet.add(p)
-                        values[translate.get(p, p)] = translate.get(v, v)
-                if len(valuesStr) != 0:
-                    print(coord, ", ".join(valuesStr))
-                    nrProps += 1
-                res[tuple(coord)] = values
-    print("Total", nrTotal, "Props", nrProps, "Diff", nrTotal - nrProps)
-    print("Props set:", list(propSet))
-    return res
-
 
 def mean(coord):
     if isinstance(coord[0], list):
@@ -96,13 +57,61 @@ def mean(coord):
 
 
 class OSM:
+    def conv(self):
+        propSet = set()
+        nrTotal = 0
+        nrProps = 0
+        res = {}
+        for path in paths:
+            with open(path, "r") as jsonFile:
+                geoJS = json.load(jsonFile)
+                featuresJS = geoJS.get("features")
+                print("Path", path)
+                for featureJS in featuresJS:
+                    geomJS = featureJS.get("geometry")
+                    geoType = geomJS.get("type")
+                    geoCoords = geomJS.get("coordinates")
+                    coord = mean(geoCoords)
+
+                    nrTotal += 1
+                    geoProps = featureJS.get("properties")
+                    valuesStr = []
+                    values = {}
+                    for p in ["bicycle_parking", "capacity", "covered", "shelter", "name", "description",
+                              "source:capacity", "bicycle", "note:total_capacity", "description:de",
+                              "maxstay", "addr:housenumber", "addr:postcode", "addr:street", "opening_hours"]:
+                        v = geoProps.get(p)
+                        if v:
+                            # v = codecs.decode(v, encoding = "unicode_escape")
+                            v = codecs.encode(v, "Windows-1252")
+                            v = codecs.decode(v, "utf-8")
+                            valuesStr.append(p + ":" + v)
+                            propSet.add(p)
+                            k = translate.get(p, p)
+                            v = translate.get(v, v)
+                            if values.get(k) is None:
+                                values[k] = v
+                            else:
+                                try:
+                                    values[k] = values[k] + ", " + v
+                                except:
+                                    values[k] = v
+
+                    if len(valuesStr) != 0:
+                        print(coord, ", ".join(valuesStr))
+                        nrProps += 1
+                    res[tuple(coord)] = values
+        print("Total", nrTotal, "Props", nrProps, "Diff", nrTotal - nrProps)
+        print("Props set:", list(propSet))
+        return res
+
     def main(self, *argv):
         self.baseConfig = config.Config(self)
         base = "Abstellanlagen"
         self.baseJS = self.baseConfig.getBase(base)
         self.dbinst = db.DB.instance()
         self.dbinst.initDB(self)
-        values = conv()
+        values = self.conv()
         self.dbinst.insert_data_from_osm(values)
         # duplicate: 48.12553483, 11.66346097
 

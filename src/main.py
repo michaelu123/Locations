@@ -25,7 +25,6 @@ from kivymd.uix.list import OneLineAvatarIconListItem
 import bugs
 import config
 import db
-import gsheets
 import utils
 from data import Data, Zusatz
 from kamera import Kamera
@@ -104,7 +103,7 @@ Builder.load_string(
                     points: [0, self.height/2, self.width, self.height/2]
             #size_hint: 0.5, 0.5
             #pos_hint: {"x": .25, "y": .25}
-            #on_map_relocated: mapview.sync_to(self)
+            on_map_relocated: app.map_relocated()
         Toolbar:
             MDLabel:
                 text: "Zoom: {}".format(mapview.zoom)
@@ -310,6 +309,7 @@ class Locations(MDApp):
         self.markerMap = {}
         self.settings_cls = SettingsWithSidebar
         self.curMarker = None
+        self.relocated = 0
 
         try:
             self.baseConfig = config.Config(self)
@@ -323,6 +323,7 @@ class Locations(MDApp):
         self.root = Page()
         try:
             base = self.store.get("base")["base"]
+            self.baseConfig.getBase(base)
         except:
             base = self.baseConfig.getNames()[0]
         print("base", base)
@@ -339,6 +340,7 @@ class Locations(MDApp):
 
         self.store.put("base", base=self.selected_base)
         self.baseJS = self.baseConfig.getBase(self.selected_base)
+        self.stellen = self.baseJS.get("gps").get("nachkommastellen")
         self.dbinst = db.DB.instance()
         self.dbinst.initDB(self)
 
@@ -376,10 +378,9 @@ class Locations(MDApp):
         self.root.sm.add_widget(self.account)
 
         markers = self.dbinst.getMarkerLocs()
-        for marker in markers[0]: # with images: red
-            self.add_marker(marker[0], marker[1], True)
-        for marker in markers[1]: # without images: blue
-            self.add_marker(marker[0], marker[1], False)
+        markers = list(markers)[0:3]
+        for marker in markers:
+            self.add_marker(marker[0], marker[1])
         self.center()
         self.pushScreen("Karte")
         try:
@@ -396,23 +397,14 @@ class Locations(MDApp):
     def senden(self, *args):
         pass
 
-    def checkMarker(self):
-        if self.curMarker is None:
-            return
-        lat = self.curMarker.lat
-        lon = self.curMarker.lon
-
-        if not self.dbinst.existsLatLon(lat, lon):
-            self.mapview.remove_marker(self.curMarker)
-            self.curMarker = None
-
     def clear(self, *args):
         cur_screen = self.root.sm.current_screen
         if cur_screen.name == "Karte":
             return
         if cur_screen.name == "Data":
             self.data.clear()
-            self.checkMarker()
+            lat, lon = self.centerLatLon()
+            self.add_marker(round(lat, self.stellen), round(lon, self.stellen))
             return
         if cur_screen.name == "Zusatz":
             self.zusatz.clear()
@@ -425,8 +417,9 @@ class Locations(MDApp):
             if platform == "android":
                 os.remove(src)
             src = os.path.basename(src)
-            self.dbinst.delete_images(self.mapview.lat, self.mapview.lon, src)
-            self.checkMarker()
+            lat, lon = self.centerLatLon()
+            self.dbinst.delete_images(lat, lon, src)
+            self.add_marker(round(lat, self.stellen), round(lon, self.stellen))
             self.show_data(False)
 
     def msgDialog(self, titel, text):
@@ -454,8 +447,18 @@ class Locations(MDApp):
     def center_on(self, lat, lon):
         self.mapview.set_zoom_at(18, 0, 0, 2.0)
         self.mapview.center_on(lat, lon)
-        self.mapview.lat = lat
-        self.mapview.lon = lon
+        self.mapview.centerlat = lat
+        self.mapview.centerlon = lon
+        self.relocated = 0
+
+    def map_relocated(self):
+        self.relocated += 1
+
+    def centerLatLon(self):
+        # if self.relocated == 1, the map has not moved since the last center_on
+        if self.relocated == 1:
+            return (self.mapview.centerlat, self.mapview.centerlon)
+        return (self.mapview.lat, self.mapview.lon)
 
     def gps_onlocation(self, **kwargs):
         lat = kwargs["lat"]
@@ -491,7 +494,8 @@ class Locations(MDApp):
 
     def on_pause(self):
         print("on_pause")
-        self.store.put("latlon", lat=self.mapview.lat, lon=self.mapview.lon)
+        lat, lon = self.centerLatLon()
+        self.store.put("latlon", lat=lat, lon=lon)
         return True
 
     def on_stop(self):
@@ -537,16 +541,36 @@ class Locations(MDApp):
             if check != instance_check:
                 check.active = False
 
-    def add_marker(self, lat, lon, red):
-        markerOld = self.markerMap.get((lat, lon), None)
-        if red: # with image
-            markerNew = MyMapMarker(lat=lat, lon=lon)
-        else: #no image
-            markerNew = MyMapMarker(lat=lat, lon=lon, source="icons/marker_blue.png")
+    def createMarker(self, lat, lon):
+        img = self.dbinst.existsImage(lat, lon)
+        if self.baseJS.get("name") == "Abstellanlagen":
+            col = self.dbinst.getRedYellowGreen(lat, lon)
+        elif self.dbinst.existsDataOrZusatz(lat, lon):
+            col = "red"
+        else:
+            col = None
+        if not img and col is None:
+            return None
+        if col is None:
+            col = "red"
+        if img:
+            src = col + "_plus48.png"
+        else:
+            src = col + "48.png"
+        mm = MyMapMarker(lat=lat, lon=lon, source="icons/" + src)
+        return mm
+
+    def add_marker(self, lat, lon):
+        lat_round = round(lat, self.stellen)
+        lon_round = round(lon, self.stellen)
+        markerMapKey = str(lat_round) + ":" + str(lon_round)
+        markerOld = self.markerMap.get(markerMapKey, None)
+        markerNew = self.createMarker(lat_round, lon_round)
         if markerOld is not None:
             self.mapview.remove_marker(markerOld)
-        self.mapview.add_marker(markerNew)
-        self.markerMap[(lat,lon)] = markerNew
+        if markerNew is not None:
+            self.mapview.add_marker(markerNew)
+            self.markerMap[markerMapKey] = markerNew
 
     def clickMarker(self, marker):
         self.curMarker = marker

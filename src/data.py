@@ -83,20 +83,45 @@ def checkProtected(obj):
 
 
 class TextField(MDTextField):
-    def __init__(self, data, name, **kwargs):
-        self.feldname = name
+    def __init__(self, data, name, type, limited, **kwargs):
         self.data = data
+        self.feldname = name
+        self.feldtype = type
+        self.limited = limited
         super().__init__(**kwargs)
 
+    def yes(self):
+        t = self.text.lower()
+        if len(t) == 0:
+            return ("", None)
+        if t == "1" or t[0] == "y" or t[0] == "j":
+            return ("ja", 1)
+        return ("nein", 0)
+
+    def limit(self):
+        t = self.text.lower()
+        if len(t) == 0:
+            return ("", None)
+        for l in self.limited:
+            if t[0] == l[0]:
+                return (l,l)
+        return ("", None)
+
     def data_event(self, *args):
-        self.data.update(self.feldname, self.text, self.data.app.mapview.lat, self.data.app.mapview.lon)
+        if self.feldtype == "bool":
+            self.text, val = self.yes()
+        elif self.limited is not None:
+            self.text, val = self.limit()
+        else:
+            val = self.text
+        self.data.update(self.feldname, val, self.data.app.mapview.lat, self.data.app.mapview.lon)
 
 
 class Form(Screen):
     def init(self):
         std = [("created", "Erzeugt"), ("modified", "Geändert")]
         for t in std:
-            tf = TextField(self, t[0])
+            tf = TextField(self, t[0], "string", None)
             tf.hint_text = t[1]
             tf.helper_text = ""
             tf.text = ""
@@ -107,7 +132,9 @@ class Form(Screen):
         for fieldJS in self.fieldsJS:
             # tf=TextField(hint_text="xxx", ..) does not work!?
             name = fieldJS.get("name")
-            tf = TextField(self, name)
+            type = fieldJS.get("type")
+            limited = fieldJS.get("limited", None)
+            tf = TextField(self, name, type, limited)
             tf.hint_text = fieldJS.get("hint_text")
             tf.helper_text = fieldJS.get("helper_text")
             tf.text = ""
@@ -126,7 +153,13 @@ class Form(Screen):
             for name in self.fields.keys():
                 field = self.fields[name]
                 v = values[name]
-                field.text = "" if v is None else str(v)
+                if v is None:
+                    v = ""
+                elif field.feldtype == "bool":
+                    v = "ja" if v else "nein"
+                elif field.feldtype == "prozent":
+                    v = str(v) + "%"
+                field.text = str(v)
             self.creator = values["creator"]
 
 
