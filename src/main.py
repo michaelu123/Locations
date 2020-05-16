@@ -311,14 +311,10 @@ class Locations(MDApp):
         self.curMarker = None
         self.relocated = 0
 
-        try:
-            self.baseConfig = config.Config(self)
-        except Exception as e:
-            s = utils.printExToString("Konfigurationsfehler", e)
-            print(s)
-            self.error = s
+        self.baseConfig = config.Config()
+        self.error = self.baseConfig.getErrors()
+        if self.error:
             Clock.schedule_once(self.show_error, 2)
-            return
         self.store = JsonStore("base.json")
         self.root = Page()
         try:

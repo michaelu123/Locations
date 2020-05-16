@@ -24,6 +24,7 @@ Builder.load_string("""
             orientation: 'vertical'
             #spacing: 10
             MDRaisedButton:
+                id:zsbtn
                 text: "Zusatzdaten"
                 size_hint: 1,0.1
                 on_release: root.show_zusatz()
@@ -176,6 +177,9 @@ class Data(Form):
         self.image_list = ["./images/" + utils.photo_image_path]
         self.dbinst = db.DB.instance()
         super().__init__(**kwargs)
+        if self.app.baseJS.get("zusatz", None) is None:
+            self.ids.zsbtn.disabled = True
+
 
     def setData(self):
         # gc.collect()

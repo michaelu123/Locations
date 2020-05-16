@@ -272,8 +272,11 @@ class DB():
             vals_data = set(c.fetchall())
             c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_images")
             vals_images = set(c.fetchall())
-            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_zusatz")
-            vals_zusatz = set(c.fetchall())
+            if self.baseJS.get("zusatz", None) is not None:
+                c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_zusatz")
+                vals_zusatz = set(c.fetchall())
+            else:
+                vals_zusatz = set()
             return vals_images.union(vals_data).union(vals_zusatz)
 
     def existsImage(self, lat, lon):
@@ -310,8 +313,9 @@ class DB():
                           (lat_round, lon_round))
             if len(list(r)) > 0:
                 return True
-            r = c.execute("SELECT lat from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ?",
-                          (lat_round, lon_round))
-            if len(list(r)) > 0:
-                return True
+            if self.baseJS.get("zusatz", None) is not None:
+                r = c.execute("SELECT lat from " + self.tabellenname + "_zusatz WHERE lat_round = ? and lon_round = ?",
+                              (lat_round, lon_round))
+                if len(list(r)) > 0:
+                    return True
         return False

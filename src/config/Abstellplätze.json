@@ -24,8 +24,11 @@
         "helper_text": "Platz, Straße, Haltestelle",
         "type": "string"
       }
-    ],
-    "zusatz": [
+    ]
+  },
+  "zusatz": {
+    "protected": false,
+    "felder": [
       {
         "name": "begründung",
         "hint_text": "Begründung",

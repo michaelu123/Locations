@@ -156,10 +156,10 @@ syntax = \
 
 
 class Config():
-    def __init__(self, app):
-        self.app = app
+    def __init__(self):
         configDir = utils.getDataDir()
         self.configs = {}
+        self.errors = []
         for dir in set([configDir, "."]):
             self.file_list = sorted(glob.glob(dir + "/config/*.json"))
             for f in self.file_list:
@@ -170,6 +170,7 @@ class Config():
                             self.checkSyntax(confJS, syntax)
                         except Exception as e:
                             utils.printEx("Kann Datei " + f + " nicht parsen:", e)
+                            self.errors.append("Kann Datei " + f + " nicht parsen:" + str(e))
                             continue
                         nm = confJS.get("name")
                         self.configs[nm] = confJS
@@ -200,7 +201,7 @@ class Config():
     def checkSyntax(self, js, syn):
         for synkey in syn.keys():
             required = syn.get(synkey).get("required")
-            print("checksyntax", "key:", synkey, "req:", required)
+            # print("checksyntax", "key:", synkey, "req:", required)
             if synkey in js.keys():
                 self.checkType(synkey, syn.get(synkey), js.get(synkey))
             elif required:
@@ -208,7 +209,7 @@ class Config():
 
     def checkType(self, key, syn, js):
         syntype = syn.get("type")
-        print("checktype", "key:", key, "type:", syntype, "js:", js)
+        # print("checktype", "key:", key, "type:", syntype, "js:", js)
         if syntype == "string":
             if not isinstance(js, str):
                 raise (ValueError("Das Feld " + key + " hat den Typ " + str(type(js)) + " anstatt string "))
@@ -252,31 +253,33 @@ class Config():
             raise ValueError("!!")
 
     def checkSimpleType(self, key, js, syntype):
-        print("checksimpletype", "key", key, "type:", syntype, "js:", js)
+        # print("checksimpletype", "key", key, "type:", syntype, "js:", js)
         if syntype == "string":
             if not isinstance(js, str):
                 raise ValueError(
-                    "Der wert " + js + " im Feld " + key + " hat den Typ " + str(type(js)) + " anstatt string ")
+                    "Der wert " + str(js) + " im Feld " + key + " hat den Typ " + str(type(js)) + " anstatt string ")
         elif syntype == "int":
             if not isinstance(js, int):
                 raise ValueError(
-                    "Der wert " + js + " im Feld " + key + " hat den Typ " + str(
+                    "Der wert " + str(js) + " im Feld " + key + " hat den Typ " + str(
                         type(js)) + " anstatt int (d.h. eine ganze Zahl")
         elif syntype == "bool":
             if not isinstance(js, bool):
                 raise ValueError(
-                    "Der wert " + js + " im Feld " + key + " hat den Typ " + str(
+                    "Der wert " + str(js) + " im Feld " + key + " hat den Typ " + str(
                         type(js)) + " anstatt bool (d.h. true oder false)")
         elif syntype == "float":
             if not isinstance(js, float):
                 raise ValueError(
-                    "Der wert " + js + " im Feld " + key + " hat den Typ " + str(
+                    "Der wert " + str(js) + " im Feld " + key + " hat den Typ " + str(
                         type(js)) + " anstatt float (d.h. eine Gleitkommazahl)")
         else:
             raise ValueError("Unbekannter Typ " + syntype + "im Feld " + key)
 
+    def getErrors(self):
+        return "\n".join(self.errors)
 
-try:
-    Config(None)
-except Exception as e:
-    print(e)
+if __name__ == "__main__":
+    cfg = Config()
+    print("Geparst", cfg.getNames())
+    print("Errors:", cfg.getErrors())
