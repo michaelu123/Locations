@@ -191,7 +191,7 @@ Builder.load_string(
             MDRaisedButton:
                 text: "Zentrieren"
                 size_hint: 1/4,1
-                on_release: app.center()
+                on_release: app.center(True)
             MDRaisedButton:
                 text: "Karte"
                 size_hint: 1/4,1
@@ -377,19 +377,30 @@ class Locations(MDApp):
         self.account = Account(name="Account")
         self.root.sm.add_widget(self.account)
 
-        markers = self.dbinst.getMarkerLocs()
-        markers = list(markers)[0:3]
-        for marker in markers:
-            self.add_marker(marker[0], marker[1])
-        self.center()
         self.pushScreen("Karte")
-        try:
-            lat = self.store.get("latlon")["lat"]
-            lon = self.store.get("latlon")["lon"]
-            self.center_on(lat, lon)
-        except:
-            pass
-        # gc.collect()
+        self.center(False)
+
+    def show_markers(self, *args):
+        clat = self.mapview.centerlat
+        clon = self.mapview.centerlon
+        minlat = clat - 0.013
+        maxlat = clat + 0.013
+        minlon = clon - 0.013
+        maxlon = clon + 0.013
+
+        for k in list(self.markerMap.keys()):
+            lat, lon = k.split(":")
+            lat = float(lat)
+            lon = float(lon)
+            if lat < minlat or lat > maxlat or lon < minlon or lon > maxlon:
+                markerOld = self.markerMap.get(k)
+                self.mapview.remove_marker(markerOld)
+                del self.markerMap[k]
+
+        markers = self.dbinst.getMarkerLocs()
+        for marker in markers:
+            if minlat < marker[0] < maxlat and minlon < marker[1] < maxlon:
+                self.add_marker(marker[0], marker[1])
 
     def show_account(self, *args):
         self.pushScreen("Account")
@@ -438,14 +449,24 @@ class Locations(MDApp):
         self.dialog.dismiss(animation=False, force=True)
         self.dialog = None
 
-    def center(self):
-        gps = self.baseJS.get("gps")
-        lat = gps.get("center_lat")
-        lon = gps.get("center_lon")
+    def center(self, newCenter):
+        if newCenter:
+            lat = self.mapview.lat
+            lon = self.mapview.lon
+            self.store.put("latlon", lat=lat, lon=lon)
+        else:
+            try:
+                lat = self.store.get("latlon")["lat"]
+                lon = self.store.get("latlon")["lon"]
+            except:
+                gps = self.baseJS.get("gps")
+                lat = gps.get("center_lat")
+                lon = gps.get("center_lon")
         self.center_on(lat, lon)
+        Clock.schedule_once(self.show_markers, 0)
 
     def center_on(self, lat, lon):
-        self.mapview.set_zoom_at(18, 0, 0, 2.0)
+        self.mapview.set_zoom_at(17, 0, 0, 2.0)
         self.mapview.center_on(lat, lon)
         self.mapview.centerlat = lat
         self.mapview.centerlon = lon
@@ -568,7 +589,9 @@ class Locations(MDApp):
         markerNew = self.createMarker(lat_round, lon_round)
         if markerOld is not None:
             self.mapview.remove_marker(markerOld)
-        if markerNew is not None:
+        if markerNew is None:
+            del self.markerMap[markerMapKey]
+        else:
             self.mapview.add_marker(markerNew)
             self.markerMap[markerMapKey] = markerNew
 
