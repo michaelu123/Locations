@@ -9,35 +9,38 @@
     "max_lat": 48.2,
     "min_lon": 11.5,
     "max_lon": 11.6,
-    "center_lat": 48.15,
-    "center_lon": 11.55,
+    "center_lat": 48.137235,
+    "center_lon": 11.57554,
     "nachkommastellen": 5,
     "min_zoom": 12
   },
-  "felder": [
-    {
-      "name": "material",
-      "hint_text": "Material",
-      "helper_text": "Holz, Eisem, Plastik, Beton",
-      "type": "string"
-    },
-    {
-      "name": "plätze",
-      "hint_text": "Anzahl der Sitzplätze",
-      "helper_text": "Zahl",
-      "type": "int"
-    },
-    {
-      "name": "zustand",
-      "hint_text": "Zustand",
-      "helper_text": "gut/beschädigt/unbrauchbar",
-      "type": "string"
-    },
-    {
-      "name": "bemerkung",
-      "hint_text": "Bemerkung",
-      "helper_text": "sonstiges",
-      "type": "string"
-    }
-  ]
+  "daten": {
+    "protected": false,
+    "felder": [
+      {
+        "name": "material",
+        "hint_text": "Material",
+        "helper_text": "Holz, Eisen, Plastik, Beton",
+        "type": "string"
+      },
+      {
+        "name": "plätze",
+        "hint_text": "Anzahl der Sitzplätze",
+        "helper_text": "Zahl",
+        "type": "int"
+      },
+      {
+        "name": "zustand",
+        "hint_text": "Zustand",
+        "helper_text": "gut/beschädigt/unbrauchbar",
+        "type": "string"
+      },
+      {
+        "name": "bemerkung",
+        "hint_text": "Bemerkung",
+        "helper_text": "sonstiges",
+        "type": "string"
+      }
+    ]
+  }
 }

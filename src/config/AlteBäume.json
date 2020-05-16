@@ -4,52 +4,56 @@
   "db_tabellenname": "altebäume",
   "spreadsheet_id": "",
   "sheet_name": "",
+  "protected": false,
   "gps": {
     "min_lat": 48.0,
     "max_lat": 48.25,
     "min_lon": 11.4,
     "max_lon": 11.8,
-    "center_lat": 48.13724404,
-    "center_lon": 11.57617109,
-    "nachkommastellen": 4,
+    "center_lat": 48.137235,
+    "center_lon": 11.57554,
+    "nachkommastellen": 5,
     "min_zoom": 11
   },
-  "felder": [
-    {
-      "name": "ort",
-      "hint_text": "Ort",
-      "helper_text": "Platz, Straße, Park",
-      "type": "string"
-    },
-    {
-      "name": "Art",
-      "hint_text": "Art",
-      "helper_text": "Buche, Eiche, Fichte, Tanne",
-      "type": "string"
-    },
-    {
-      "name": "umfang",
-      "hint_text": "Stammumfang",
-      "helper_text": "Stammumfang in cm",
-      "type": "int"
-    },
-    {
-      "name": "höhe",
-      "hint_text": "Baumhöhe",
-      "helper_text": "Geschätzte Höhe in m",
-      "type": "int"
-    },
-    {
-      "name": "zustand",
-      "hint_text": "Zustand",
-      "helper_text": "gut/geschädigt/krank",
-      "type": "string"
-    },
-    {
-      "name": "bemerkung",
-      "hint_text": "Bemerkung",
-      "helper_text": "Sonstiges",
-      "type": "string"
-    }
-  ]
+  "daten": {
+    "protected": false,
+    "felder": [
+      {
+        "name": "ort",
+        "hint_text": "Ort",
+        "helper_text": "Platz, Straße, Park",
+        "type": "string"
+      },
+      {
+        "name": "Art",
+        "hint_text": "Art",
+        "helper_text": "Buche, Eiche, Fichte, Tanne",
+        "type": "string"
+      },
+      {
+        "name": "umfang",
+        "hint_text": "Stammumfang",
+        "helper_text": "Stammumfang in cm",
+        "type": "int"
+      },
+      {
+        "name": "höhe",
+        "hint_text": "Baumhöhe",
+        "helper_text": "Geschätzte Höhe in m",
+        "type": "int"
+      },
+      {
+        "name": "zustand",
+        "hint_text": "Zustand",
+        "helper_text": "gut/geschädigt/krank",
+        "type": "string"
+      },
+      {
+        "name": "bemerkung",
+        "hint_text": "Bemerkung",
+        "helper_text": "Sonstiges",
+        "type": "string"
+      }
+    ]
+  }
 }
