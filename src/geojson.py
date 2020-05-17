@@ -106,13 +106,13 @@ class OSM:
         return res
 
     def main(self, *argv):
-        self.baseConfig = config.Config(self)
+        self.baseConfig = config.Config()
         base = "Abstellanlagen"
         self.baseJS = self.baseConfig.getBase(base)
         self.dbinst = db.DB.instance()
         self.dbinst.initDB(self)
         values = self.conv()
-        self.dbinst.insert_data_from_osm(values)
+        self.dbinst.insert_daten_from_osm(values)
         # duplicate: 48.12553483, 11.66346097
 
 osm = OSM()

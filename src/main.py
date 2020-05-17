@@ -26,7 +26,7 @@ import bugs
 import config
 import db
 import utils
-from data import Data, Zusatz
+from data import Daten, Zusatz
 from kamera import Kamera
 
 Builder.load_string(
@@ -200,7 +200,7 @@ Builder.load_string(
                 id: datenbtn
                 text: "Eigenschaften" if sm.current == "Account" else "Daten"
                 size_hint: 1/4,1
-                on_release: app.show_data(False)
+                on_release: app.show_daten(False)
             MDRaisedButton:
                 text: "GPS fix"
                 size_hint: 1/4,1
@@ -254,7 +254,7 @@ class Images(Screen):
 
     def show_images(self):
         # image_list must always contain photo_image_path, otherwise image_list[0] in <Images> fails
-        copy_list = [im for im in app.data.image_list if not im.endswith(utils.photo_image_path)]
+        copy_list = [im for im in app.daten.image_list if not im.endswith(utils.photo_image_path)]
         l = len(copy_list)
         if l == 0:
             app.do_capture()
@@ -363,8 +363,8 @@ class Locations(MDApp):
         self.single = Single(name="Single")
         self.root.sm.add_widget(self.single)
 
-        self.data = Data(self, name="Data")
-        self.root.sm.add_widget(self.data)
+        self.daten = Daten(self, name="Daten")
+        self.root.sm.add_widget(self.daten)
         self.zusatz = Zusatz(self, name="Zusatz")
         self.root.sm.add_widget(self.zusatz)
 
@@ -408,8 +408,8 @@ class Locations(MDApp):
         cur_screen = self.root.sm.current_screen
         if cur_screen.name == "Karte":
             return
-        if cur_screen.name == "Data":
-            self.data.clear()
+        if cur_screen.name == "Daten":
+            self.daten.clear()
             lat, lon = self.centerLatLon()
             self.add_marker(round(lat, self.stellen), round(lon, self.stellen))
             return
@@ -427,7 +427,7 @@ class Locations(MDApp):
             lat, lon = self.centerLatLon()
             self.dbinst.delete_images(lat, lon, src)
             self.add_marker(round(lat, self.stellen), round(lon, self.stellen))
-            self.show_data(False)
+            self.show_daten(False)
 
     def msgDialog(self, titel, text):
         if self.dialog is not None:
@@ -497,17 +497,17 @@ class Locations(MDApp):
         self.pushScreen("Images")
         self.images.show_images()
 
-    def show_data(self, delay):
+    def show_daten(self, delay):
         if self.checkAlias():
-            self.data.setData()
-            self.center_on(self.data.lat, self.data.lon)
+            self.daten.setDaten()
+            self.center_on(self.daten.lat, self.daten.lon)
             if delay and self.root.sm.current_screen.name == "Karte":
-                Clock.schedule_once(self.show_data2, 1)
+                Clock.schedule_once(self.show_daten2, 1)
             else:
-                self.pushScreen("Data")
+                self.pushScreen("Daten")
 
-    def show_data2(self, *args):
-        self.pushScreen("Data")
+    def show_daten2(self, *args):
+        self.pushScreen("Daten")
 
     def on_pause(self):
         print("on_pause")
@@ -562,7 +562,7 @@ class Locations(MDApp):
         img = self.dbinst.existsImage(lat, lon)
         if self.baseJS.get("name") == "Abstellanlagen":
             col = self.dbinst.getRedYellowGreen(lat, lon)
-        elif self.dbinst.existsDataOrZusatz(lat, lon):
+        elif self.dbinst.existsDatenOrZusatz(lat, lon):
             col = "red"
         else:
             col = None
@@ -594,12 +594,12 @@ class Locations(MDApp):
     def clickMarker(self, marker):
         self.curMarker = marker
         self.center_on(marker.lat, marker.lon)
-        self.show_data(True)
+        self.show_daten(True)
 
     def do_capture(self, *args):
-        if self.checkAlias():  # and self.root.sm.current_screen.name == "Data":
-            self.data.setData()
-            self.kamera.do_capture(self.data.lat, self.data.lon)
+        if self.checkAlias():  # and self.root.sm.current_screen.name == "Daten":
+            self.daten.setDaten()
+            self.kamera.do_capture(self.daten.lat, self.daten.lon)
 
     def checkAlias(self):
         if not self.account.ids.aliasname.text:

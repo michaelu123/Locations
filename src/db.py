@@ -42,7 +42,7 @@ class DB():
         for feld in self.baseJS.get("daten").get("felder"):
             fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
         fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT FAIL")
-        stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_data (" + ", ".join(fields) + ")"
+        stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_daten (" + ", ".join(fields) + ")"
 
         conn = self.getConn()
         with conn:
@@ -72,13 +72,13 @@ class DB():
             c.execute(stmt1)
             c.execute(stmt2)
 
-    def get_data(self, lat, lon):
+    def get_daten(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            c.execute("SELECT * from " + self.tabellenname + "_data WHERE lat_round = ? and lon_round = ?",
+            c.execute("SELECT * from " + self.tabellenname + "_daten WHERE lat_round = ? and lon_round = ?",
                       (lat_round, lon_round))
             vals = c.fetchone()
             if vals is None:
@@ -87,16 +87,16 @@ class DB():
             r = dict(zip(cols, vals))
             return r
 
-    def delete_data(self, lat, lon):
+    def delete_daten(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            c.execute("DELETE from " + self.tabellenname + "_data WHERE lat_round = ? and lon_round = ?",
+            c.execute("DELETE from " + self.tabellenname + "_daten WHERE lat_round = ? and lon_round = ?",
                       (lat_round, lon_round))
 
-    def update_data(self, name, text, lat, lon):
+    def update_daten(self, name, text, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
         now = time.strftime("%Y.%m.%d %H:%M:%S")
@@ -104,7 +104,7 @@ class DB():
             conn = self.getConn()
             with conn:
                 c = conn.cursor()
-                r1 = c.execute("UPDATE " + self.tabellenname + "_data set "
+                r1 = c.execute("UPDATE " + self.tabellenname + "_daten set "
                                + "modified = ?, "
                                + name + " = ? where lat_round = ? and lon_round = ?",
                                (now, text, lat_round, lon_round))
@@ -116,22 +116,22 @@ class DB():
                         vals[feld.get("name")] = None
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
-                    c.execute("INSERT INTO " + self.tabellenname + "_data VALUES(" + ",".join(colnames) + ")", vals)
+                    c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(colnames) + ")", vals)
             self.app.add_marker(lat, lon)
         except Exception as e:
-            utils.printEx("update_data:", e)
+            utils.printEx("update_daten:", e)
 
-    def insert_data_from_osm(self, values):  # values = { [lat,lon]: properties }
+    def insert_daten_from_osm(self, values):  # values = { [lat,lon]: properties }
         conn = self.getConn()
         try:
             with conn:
                 c = conn.cursor()
                 # just to get the column names...
-                r = c.execute("SELECT * from " + self.tabellenname + "_data WHERE lat_round=0 and lon_round=0")
+                r = c.execute("SELECT * from " + self.tabellenname + "_daten WHERE lat_round=0 and lon_round=0")
                 c.fetchone()
                 colnames = [":" + t[0] for t in c.description]
         except Exception as e:
-            utils.printEx("insert_data_from_osm:", e)
+            utils.printEx("insert_daten_from_osm:", e)
 
         #now = time.strftime("%Y.%m.%d %H:%M:%S")
         for value in values.items():
@@ -156,10 +156,10 @@ class DB():
             try:
                 with conn:
                     c = conn.cursor()
-                    c.execute("INSERT INTO " + self.tabellenname + "_data VALUES(" + ",".join(colnames) + ")", vals)
+                    c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(colnames) + ")", vals)
             except sqlite3.IntegrityError as e:
                 print("duplicate", vals)
-                utils.printEx("insert_data_from_osm:", e)
+                utils.printEx("insert_daten_from_osm:", e)
 
     def get_zusatz(self, nr):
         conn = self.getConn()
@@ -268,8 +268,8 @@ class DB():
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_data")
-            vals_data = set(c.fetchall())
+            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_daten")
+            vals_daten = set(c.fetchall())
             c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_images")
             vals_images = set(c.fetchall())
             if self.baseJS.get("zusatz", None) is not None:
@@ -277,7 +277,7 @@ class DB():
                 vals_zusatz = set(c.fetchall())
             else:
                 vals_zusatz = set()
-            return vals_images.union(vals_data).union(vals_zusatz)
+            return vals_images.union(vals_daten).union(vals_zusatz)
 
     def existsImage(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
@@ -290,7 +290,7 @@ class DB():
             return len(list(r)) > 0
 
     def getRedYellowGreen(self, lat, lon):
-        vals = self.get_data(lat, lon)
+        vals = self.get_daten(lat, lon)
         if vals is None:
             return None
         good = 0
@@ -303,13 +303,13 @@ class DB():
             return "yellow"
         return "red"
 
-    def existsDataOrZusatz(self, lat, lon):
+    def existsDatenOrZusatz(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            r = c.execute("SELECT lat from " + self.tabellenname + "_data WHERE lat_round = ? and lon_round = ?",
+            r = c.execute("SELECT lat from " + self.tabellenname + "_daten WHERE lat_round = ? and lon_round = ?",
                           (lat_round, lon_round))
             if len(list(r)) > 0:
                 return True

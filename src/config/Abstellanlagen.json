@@ -2,8 +2,7 @@
   "name": "Abstellanlagen",
   "db_name": "Abstellanlagen.db",
   "db_tabellenname": "abstellanlagen",
-  "spreadsheet_id": "",
-  "sheet_name": "",
+  "spreadsheet_id": "1ULqk5oKgA78pprCupGxApRKTHDTl9fJzECXYEO4QXJ8",
   "protected": false,
   "gps": {
     "min_lat": 48.0,

@@ -10,10 +10,10 @@ import utils
 
 Builder.load_string("""
 <TextField>:
-    on_focus: if not self.focus: self.data_event()
+    on_focus: if not self.focus: self.daten_event()
     
-<Data>:
-    id: data
+<Daten>:
+    id: daten
     image_list: self.image_list
     on_kv_post: self.init()
     ScrollView:
@@ -84,8 +84,8 @@ def checkProtected(obj):
 
 
 class TextField(MDTextField):
-    def __init__(self, data, name, type, limited, **kwargs):
-        self.data = data
+    def __init__(self, daten, name, type, limited, **kwargs):
+        self.daten = daten
         self.feldname = name
         self.feldtype = type
         self.limited = limited
@@ -108,14 +108,14 @@ class TextField(MDTextField):
                 return (l,l)
         return ("", None)
 
-    def data_event(self, *args):
+    def daten_event(self, *args):
         if self.feldtype == "bool":
             self.text, val = self.yes()
         elif self.limited is not None:
             self.text, val = self.limit()
         else:
             val = self.text
-        self.data.update(self.feldname, val, self.data.app.mapview.lat, self.data.app.mapview.lon)
+        self.daten.update(self.feldname, val, self.daten.app.mapview.lat, self.daten.app.mapview.lon)
 
 
 class Form(Screen):
@@ -164,7 +164,7 @@ class Form(Screen):
             self.creator = values["creator"]
 
 
-class Data(Form):
+class Daten(Form):
     image_list = ListProperty()
 
     def __init__(self, app, **kwargs):
@@ -181,7 +181,7 @@ class Data(Form):
             self.ids.zsbtn.disabled = True
 
 
-    def setData(self):
+    def setDaten(self):
         # gc.collect()
         # get images for lat/lon
         mv = self.app.mapview
@@ -200,9 +200,9 @@ class Data(Form):
                 # raise Exception("cannot access " + p)
         self.image_list = imlist2
 
-        # get data for lat/lon
-        values = self.dbinst.get_data(self.lat, self.lon)
-        print("data values", values, self.lat, self.lon)
+        # get daten for lat/lon
+        values = self.dbinst.get_daten(self.lat, self.lon)
+        print("daten values", values, self.lat, self.lon)
         self.setValues(values)
         if values is not None:
             self.lat = values["lat"]
@@ -211,12 +211,12 @@ class Data(Form):
     def update(self, *args):
         if checkProtected(self):
             return
-        self.dbinst.update_data(*args)
+        self.dbinst.update_daten(*args)
 
     def clear(self, *args):
         if checkProtected(self):
             return
-        self.dbinst.delete_data(self.lat, self.lon)
+        self.dbinst.delete_daten(self.lat, self.lon)
         for name in self.fields.keys():
             field = self.fields[name]
             field.text = ""
@@ -260,7 +260,7 @@ class Zusatz(Form):
             self.setZusatz(rowid)
 
     def setZusatz(self, nr):
-        # get zusatz (additional, 1:n) data for lat/lon
+        # get zusatz (additional, 1:n) daten for lat/lon
         mv = self.app.mapview
         self.lat, self.lon = mv.lat, mv.lon
         self.numbers = self.dbinst.get_zusatz_numbers(self.lat, self.lon)

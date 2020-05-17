@@ -21,10 +21,6 @@ syntax = \
             "required": True,
             "type": "string"
         },
-        "sheet_name": {
-            "required": True,
-            "type": "string"
-        },
         "protected": {
             "required": False,
             "type": "bool"

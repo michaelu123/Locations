@@ -29,8 +29,8 @@ class Kamera:
             self.filepath = utils.getDataDir() + "/images/" + filename
             if not os.path.exists(self.filepath):
                 raise Exception("???")
-            self.app.data.addImage(filename, self.filepath, lat, lon)
-            #self.app.root.sm.current = "Data"
+            self.app.daten.addImage(filename, self.filepath, lat, lon)
+            #self.app.root.sm.current = "Daten"
             self.app.on_pause()
             self.app.on_resume()
             return
@@ -54,7 +54,7 @@ class Kamera:
 
 
     def change_image(self, *args):
-        self.app.data.addImage(self.filename, self.filepath, self.lat, self.lon)
-        self.app.show_data(False)
+        self.app.daten.addImage(self.filename, self.filepath, self.lat, self.lon)
+        self.app.show_daten(False)
 
 
