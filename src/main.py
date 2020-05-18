@@ -1,5 +1,3 @@
-import json
-import json
 import locale
 import os
 import os.path
@@ -25,6 +23,7 @@ from kivymd.uix.list import OneLineAvatarIconListItem
 import bugs
 import config
 import db
+import gsheets
 import utils
 from data import Daten, Zusatz
 from kamera import Kamera
@@ -345,6 +344,8 @@ class Locations(MDApp):
         self.root.sm.clear_widgets(sm_screens)
         sm_screens = None
 
+        self.gsheet = gsheets.GSheet(self)
+
         self.karte = Karte(name="Karte")
         self.root.sm.add_widget(self.karte)
 
@@ -368,7 +369,6 @@ class Locations(MDApp):
         self.zusatz = Zusatz(self, name="Zusatz")
         self.root.sm.add_widget(self.zusatz)
 
-
         self.kamera = Kamera(self)
         self.account = Account(name="Account")
         self.root.sm.add_widget(self.account)
@@ -388,15 +388,17 @@ class Locations(MDApp):
             lat, lon = k.split(":")
             lat = float(lat)
             lon = float(lon)
-            if lat < minlat or lat > maxlat or lon < minlon or lon > maxlon:
+            if not (minlat < lat < maxlat and minlon < lon < maxlon):
                 markerOld = self.markerMap.get(k)
                 self.mapview.remove_marker(markerOld)
                 del self.markerMap[k]
 
-        markers = self.dbinst.getMarkerLocs()
+        sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
+        # self.dbinst.fillWith(sheetValues)
+        # markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
+        markers = [[float(sv[3].replace(",",".")), float(sv[4].replace(",","."))] for sv in sheetValues]
         for marker in markers:
-            if minlat < marker[0] < maxlat and minlon < marker[1] < maxlon:
-                self.add_marker(marker[0], marker[1])
+            self.add_marker(marker[0], marker[1])
 
     def show_account(self, *args):
         self.pushScreen("Account")
@@ -521,8 +523,8 @@ class Locations(MDApp):
 
     def on_resume(self):
         print("on_resume")
-        #base = self.store.get("base")["base"]
-        #self.setup(base)
+        # base = self.store.get("base")["base"]
+        # self.setup(base)
         return True
 
     def change_base(self, *args):
@@ -638,6 +640,7 @@ class Locations(MDApp):
             self.lastScreen = None
         return True
 
+
 """
     def build_config(self, config):
         config.setdefaults('Locations', {
@@ -684,8 +687,6 @@ class Locations(MDApp):
     def on_config_change(self, config, section, key, value):
         print(config, section, key, value)
 """
-
-
 
 if __name__ == "__main__":
     # nc = True

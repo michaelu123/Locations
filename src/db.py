@@ -87,6 +87,18 @@ class DB():
             r = dict(zip(cols, vals))
             return r
 
+    def get_alle(self, kind):
+        conn = self.getConn()
+        with conn:
+            c = conn.cursor()
+            c.execute("SELECT * from " + self.tabellenname + "_" + kind)
+            return c.fetchone()
+            if vals is None:
+                return None
+            cols = [t[0] for t in c.description]
+            r = dict(zip(cols, vals))
+            return r
+
     def delete_daten(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
         lon_round = str(round(lon, self.stellen))
@@ -264,16 +276,26 @@ class DB():
                       (lat_round, lon_round, image_path))
             # print("deleted rows", c.rowcount)
 
-    def getMarkerLocs(self):
+    def getMarkerLocs(self, minlat, maxlat, minlon, maxlon):
         conn = self.getConn()
+        minlat = str(round(minlat, self.stellen))
+        maxlat = str(round(maxlat, self.stellen))
+        minlon = str(round(minlon, self.stellen))
+        maxlon = str(round(maxlon, self.stellen))
         with conn:
             c = conn.cursor()
-            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_daten")
+            c.execute("SELECT lat, lon from " + self.tabellenname +
+                      "_daten WHERE lat_round > ? and lat_round < ? and lon_round > ? and lon_round < ?",
+                      (minlat, maxlat, minlon, maxlon))
             vals_daten = set(c.fetchall())
-            c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_images")
+            c.execute("SELECT lat, lon from " + self.tabellenname +
+                      "_images WHERE lat_round > ? and lat_round < ? and lon_round > ? and lon_round < ?",
+                      (minlat, maxlat, minlon, maxlon))
             vals_images = set(c.fetchall())
             if self.baseJS.get("zusatz", None) is not None:
-                c.execute("SELECT lat_round, lon_round from " + self.tabellenname + "_zusatz")
+                c.execute("SELECT lat, lon from " + self.tabellenname +
+                          "_zusatz WHERE lat_round > ? and lat_round < ? and lon_round > ? and lon_round < ?",
+                          (minlat, maxlat, minlon, maxlon))
                 vals_zusatz = set(c.fetchall())
             else:
                 vals_zusatz = set()

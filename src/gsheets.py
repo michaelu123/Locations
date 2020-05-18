@@ -1,6 +1,9 @@
 # https://developers.google.com/sheets/api/quickstart/python
 # https://developers.google.com/photos/library/reference/rest/v1/mediaItems
 
+# Using Google Spreadsheets as a Database in the Cloud
+# https://www.youtube.com/watch?v=rWCLROPKug0
+
 # sheets v4 and drive v3 seen here:
 # https://www.googleapis.com/discovery/v1/apis/
 
@@ -73,23 +76,31 @@ class GSheet(Google):
     def __init__(self, app):
         self.app = app
         self.baseJS = app.baseJS
+        self.stellen = self.baseJS.get("gps").get("nachkommastellen")
+
+        creds = self.getCreds()
+        serviceSH = build('sheets', 'v4', credentials=creds)
+        # serviceDR = build('drive', 'v3', credentials=creds)
+        self.ssheet = serviceSH.spreadsheets()
+
         self.spreadsheet_id = self.baseJS.get("spreadsheet_id")
         sheet_basename = self.baseJS.get("db_tabellenname")  # gleicher Name wie DB
         self.sheet_names = [sheet_basename + "_daten"]
-        self.ist_headers = {}
-        self.soll_headers = {}
         if self.baseJS.get("zusatz") is not None:
             self.sheet_names.append(sheet_basename + "_zusatz")
 
+        self.ist_headers = {}
+        self.soll_headers = {}
+        for sheet_name in self.sheet_names:
+            try:
+                headers = self.ssheet.values().get(spreadsheetId=self.spreadsheet_id,
+                                                   range=sheet_name + "!1:1").execute().get('values', [])
+                self.ist_headers[sheet_name] = headers if len(headers) == 0 else headers[0]
+            except Exception as e:
+                utils.printEx("Kann Arbeitsblatt " + self.spreadsheet_id + "/" + sheet_name + " nicht laden", e)
+                raise (e)
+
     def checkSheets(self):
-        print("1getSheet")
-        creds = self.getCreds()
-        print("2getSheet")
-        serviceSH = build('sheets', 'v4', credentials=creds)
-        print("3getSheet")
-        serviceDR = build('drive', 'v3', credentials=creds)
-        print("4getSheet")
-        self.ssheet = serviceSH.spreadsheets()
         sheet_props = self.ssheet.get(spreadsheetId=self.spreadsheet_id, fields="sheets.properties").execute()
         print("5getSheet")
         sheet_names_exi = [sheet_prop["properties"]["title"] for sheet_prop in sheet_props["sheets"]]
@@ -104,14 +115,6 @@ class GSheet(Google):
             if sheet_name not in sheet_names_exi:
                 self.addSheet(sheet_name, len(self.soll_headers[sheet_name]))
 
-        for sheet_name in self.sheet_names:
-            try:
-                headers = self.ssheet.values().get(spreadsheetId=self.spreadsheet_id,
-                                                   range=sheet_name + "!1:1").execute().get('values', [])
-                self.ist_headers[sheet_name] = headers if len(headers) == 0 else headers[0]
-            except Exception as e:
-                utils.printEx("Kann Arbeitsblatt " + self.spreadsheet_id + "/" + sheet_name + " nicht laden", e)
-                raise (e)
         self.checkColumns()
 
     def addSheet(self, sheet_name, nrCols):
@@ -145,14 +148,60 @@ class GSheet(Google):
         l = len(self.ist_headers[sheet_name])
         self.addValue(sheet_name, 0, l, colName);
 
-    def addValue(self, sheetName, row, col, val):
+    def addValue(self, sheet_name, row, col, val):
         # row, col are 0 based
         values = [[val]]
         body = {"values": values}
-        range = sheetName + "!" + chr(ord('A') + col) + str(row + 1)  # 0,0-> A1, 1,2->C2 2,1->B3
+        range = sheet_name + "!" + chr(ord('A') + col) + str(row + 1)  # 0,0-> A1, 1,2->C2 2,1->B3
         result = self.ssheet.values().update(spreadsheetId=self.spreadsheet_id, range=range, valueInputOption="RAW",
                                              body=body).execute()
         print("result2", result)
+
+    def appendValues(self, sheet_name, values):
+        body = {
+            "majorDimension": "ROWS",
+            "values": values
+        }
+        result = self.ssheet.values().append(spreadsheetId=self.spreadsheet_id, range=sheet_name,
+                                             valueInputOption="RAW",
+                                             body=body).execute()
+        print("result3", result)
+
+    def getValues(self, sheet_name, a1range=""):
+        result = self.ssheet.values().get(spreadsheetId=self.spreadsheet_id,
+                                          range=sheet_name + a1range).execute().get('values', [])
+        print("result4", result)
+        return result
+
+    def column_range(self, sheet_name, hdr1, hdr2):
+        x1 = self.ist_headers[sheet_name].index(hdr1)
+        x2 = self.ist_headers[sheet_name].index(hdr2)
+        if x1 > x2:
+            x1, x2 = x2, x1
+        range = "!" + chr(ord('A') + x1) + ":" + chr(ord('A') + x2)
+        return range
+
+    def batchget(self, ranges):
+        result = self.ssheet.values().batchGet(spreadsheetId=self.spreadsheet_id,
+                                          ranges=ranges).execute().get('valueRanges', [])
+        result = [ r.get("values")[0] for r in result]
+        print("result4", result)
+        return result
+
+
+    def getValuesWithin(self, minlat, maxlat, minlon, maxlon):
+        for sheet_name in self.sheet_names:
+            minlat = str(round(minlat, self.stellen)).replace(".", ",")
+            maxlat = str(round(maxlat, self.stellen)).replace(".", ",")
+            minlon = str(round(minlon, self.stellen)).replace(".", ",")
+            maxlon = str(round(maxlon, self.stellen)).replace(".", ",")
+
+            # assume that lat_round and lon_round are adjacent, so that values is a list of 2-tuples
+            range = self.column_range(sheet_name, "lat_round", "lon_round")
+            values = self.getValues(sheet_name, range)
+            ranges = [sheet_name + "!" +str(i+1)+":"+str(i+1) for i,v in enumerate(values) if minlat < v[0] < maxlat and minlon < v[1] < maxlon]
+            values = self.batchget(ranges)
+            return values
 
 
 class GDrive(Google):
@@ -179,7 +228,6 @@ class GDrive(Google):
 
         print("")
 
-
 class App:
     def __init__(self):
         cfg = config.Config()
@@ -189,4 +237,16 @@ class App:
 if __name__ == "__main__":
     app = App()
     gsheet = GSheet(app)
-    gsheet.checkSheets()
+    # gsheet.checkSheets()
+
+    # dbinst = db.DB.instance()
+    # dbinst.initDB(app)
+    for sheet_name in gsheet.sheet_names:
+        kind = sheet_name.split("_")[-1]  # daten, zusatz
+        # values = dbinst.get_alle(kind)
+
+        # values = [["MUH", "OSM", "OSM", 48.1412437, 11.5594636, "48.14124", "11.55946"]]
+        # values = [[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]]
+        # gsheet.appendValues(sheet_name, values)
+        range = gsheet.column_range(sheet_name, "lat_round", "lon_round")
+        values = gsheet.getValues(sheet_name, range)
