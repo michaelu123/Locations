@@ -139,9 +139,9 @@ class DB():
             with conn:
                 c = conn.cursor()
                 r1 = c.execute("UPDATE " + self.tabellenname + "_daten set "
-                               + "modified = ?, "
+                               + "creator = ?, modified = ?, "
                                + name + " = ? where lat_round = ? and lon_round = ?",
-                               (now, text, lat_round, lon_round))
+                               (self.aliasname, now, text, lat_round, lon_round))
                 if r1.rowcount == 0:  # row did not yet exist
                     vals = {"creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
@@ -226,9 +226,9 @@ class DB():
                 c = conn.cursor()
                 if nr:
                     r1 = c.execute("UPDATE " + self.tabellenname + "_zusatz set "
-                                   + "modified = ?, "
+                                   + "creator = ?, modified = ?, "
                                    + name + " = ? where nr = ?",
-                                   (now, text, nr))
+                                   (self.aliasname, now, text, nr))
                 if not nr or r1.rowcount == 0:  # row did not yet exist
                     lat_round = str(round(lat, self.stellen))
                     lon_round = str(round(lon, self.stellen))
@@ -377,3 +377,34 @@ class DB():
             with conn:
                 r = conn.executemany("INSERT INTO " + sheet_name + " VALUES(" + qmarks + ")", vals)
                 print(r)
+
+    def getNewOrChanged(self, since):
+        conn = self.getConn()
+        result = {}
+        with conn:
+            c = conn.cursor()
+            tabellenname = self.tabellenname + "_daten"
+            r = c.execute("SELECT * FROM " + tabellenname + " WHERE creator = ? and modified like ? and modified > ?",
+                          (self.aliasname, since[0:4] + "%", since))
+            result[tabellenname] = r.fetchall()
+            tabellenname = self.tabellenname + "_zusatz"
+            r = c.execute("SELECT * FROM " + tabellenname + " WHERE creator = ? and modified like ? and modified > ?",
+                          (self.aliasname, since[0:4] + "%", since))
+            result[tabellenname] = r.fetchall()
+        return result
+
+# import config
+# class App:
+#     def __init__(self):
+#         cfg = config.Config()
+#         self.baseJS = cfg.getBase("Abstellanlagen")
+#
+#
+# if __name__ == "__main__":
+#     app = App()
+#     dbinst = DB.instance()
+#     dbinst.initDB(app)
+#     dbinst.aliasname = "MUH"
+#     laststored = "2020.01.01"
+#     values = dbinst.getNewOrChanged(laststored)
+#     print(values)

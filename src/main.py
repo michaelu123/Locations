@@ -1,6 +1,8 @@
+import json
 import locale
 import os
 import os.path
+import time
 
 import plyer
 from kivy.clock import Clock
@@ -188,21 +190,25 @@ Builder.load_string(
             orientation: "horizontal"
             size_hint_y: 0.1
             MDRaisedButton:
-                text: "Zentrieren"
-                size_hint: 1/4,1
-                on_release: app.center(True)
+                text: "Laden"
+                size_hint: 1/5,1
+                on_release: app.loadSheet(True)
+            MDRaisedButton:
+                text: "Speichern"
+                size_hint: 1/5,1
+                on_release: app.storeSheet()
             MDRaisedButton:
                 text: "Karte"
-                size_hint: 1/4,1
+                size_hint: 1/5,1
                 on_release: app.pushScreen("Karte")
             MDRaisedButton:
                 id: datenbtn
                 text: "Eigenschaften" if sm.current == "Account" else "Daten"
-                size_hint: 1/4,1
+                size_hint: 1/5,1
                 on_release: app.show_daten(False)
             MDRaisedButton:
                 text: "GPS fix"
-                size_hint: 1/4,1
+                size_hint: 1/5,1
                 on_release: app.gps_fix(self)
         ScreenManager:
             pos: self.pos
@@ -374,7 +380,7 @@ class Locations(MDApp):
         self.root.sm.add_widget(self.account)
 
         self.pushScreen("Karte")
-        self.center(False)
+        self.loadSheet(False)
 
     def show_markers(self, *args):
         clat = self.mapview.centerlat
@@ -393,7 +399,7 @@ class Locations(MDApp):
                 self.mapview.remove_marker(markerOld)
                 del self.markerMap[k]
 
-        if True or plyer.wifi.is_enabled(): # ??
+        if True or plyer.wifi.is_enabled():  # ??
             sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
             self.dbinst.fillWith(sheetValues)
         markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
@@ -402,9 +408,6 @@ class Locations(MDApp):
 
     def show_account(self, *args):
         self.pushScreen("Account")
-
-    def senden(self, *args):
-        pass
 
     def clear(self, *args):
         cur_screen = self.root.sm.current_screen
@@ -447,7 +450,7 @@ class Locations(MDApp):
         self.dialog.dismiss(animation=False, force=True)
         self.dialog = None
 
-    def center(self, newCenter):
+    def loadSheet(self, newCenter):
         if newCenter:
             lat = self.mapview.lat
             lon = self.mapview.lon
@@ -462,6 +465,19 @@ class Locations(MDApp):
                 lon = gps.get("center_lon")
         self.center_on(lat, lon)
         Clock.schedule_once(self.show_markers, 0)
+
+    def storeSheet(self):
+        if self.checkAlias():
+            laststored = self.getConfigValue("gespeichert")
+            newvals = self.dbinst.getNewOrChanged(laststored)
+            cnt = 0
+            for sheet_name in newvals.keys():
+                vals = newvals[sheet_name]
+                cnt += len(vals)
+                self.gsheet.appendValues(sheet_name, vals)
+            self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
+            self.msgDialog("Gespeichert", f"Es wurden {cnt} neue oder geänderte Datensätze gespeichert")
+            # ?? self.dbinst.deleteNewOrChanged()
 
     def center_on(self, lat, lon):
         self.mapview.set_zoom_at(17, 0, 0, 2.0)
@@ -640,53 +656,61 @@ class Locations(MDApp):
             self.lastScreen = None
         return True
 
-
-"""
+    # see https://www.youtube.com/watch?v=oQdGWeN51EE
     def build_config(self, config):
         config.setdefaults('Locations', {
-            'boolexample': True,
-            'numericexample': 10,
-            'stringexample': 'somestring',
-            'optionsexample': 'options2',
-            'pathexample': 'c:/temp',
+            # 'boolexample': True,
+            # 'numericexample': 10,
+            # 'stringexample': 'somestring',
+            # 'optionsexample': 'options2',
+            # 'pathexample': 'c:/temp',
+            'gespeichert': '',
         })
 
     def build_settings(self, settings):
         settings_json = json.dumps([
             {'type': 'title',
-             'title': 'example title'},
-            {'type': 'bool',
-             'title': 'A boolean setting',
-             'desc': 'Boolean description text',
-             'section': 'Locations',
-             'key': 'boolexample'},
-            {'type': 'numeric',
-             'title': 'A numeric setting',
-             'desc': 'Numeric description text',
-             'section': 'Locations',
-             'key': 'numericexample'},
-            {'type': 'options',
-             'title': 'An options setting',
-             'desc': 'Options description text',
-             'section': 'Locations',
-             'key': 'optionsexample',
-             'options': ['option1', 'option2', 'option3']},
+             'title': 'Einstellungen'},
             {'type': 'string',
-             'title': 'A string setting',
-             'desc': 'String description text',
+             'title': 'Gespeichert',
+             'desc': 'Datum des letzten Speicherns',
              'section': 'Locations',
-             'key': 'stringexample'},
-            {'type': 'path',
-             'title': 'A path setting',
-             'desc': 'Path description text',
-             'section': 'Locations',
-             'key': 'pathexample'}])
+             'key': 'gespeichert'},
+            # {'type': 'bool',
+            #  'title': 'A boolean setting',
+            #  'desc': 'Boolean description text',
+            #  'section': 'Locations',
+            #  'key': 'boolexample'},
+            # {'type': 'numeric',
+            #  'title': 'A numeric setting',
+            #  'desc': 'Numeric description text',
+            #  'section': 'Locations',
+            #  'key': 'numericexample'},
+            # {'type': 'options',
+            #  'title': 'An options setting',
+            #  'desc': 'Options description text',
+            #  'section': 'Locations',
+            #  'key': 'optionsexample',
+            #  'options': ['option1', 'option2', 'option3']},
+            # {'type': 'path',
+            #  'title': 'A path setting',
+            #  'desc': 'Path description text',
+            #  'section': 'Locations',
+            #  'key': 'pathexample'}
+        ])
 
-        settings.add_json_panel('Panel Name', self.config, data=settings_json)
+        settings.add_json_panel('Locations', self.config, data=settings_json)
 
     def on_config_change(self, config, section, key, value):
         print(config, section, key, value)
-"""
+
+    def getConfigValue(self, param):
+        return self.config.get("Locations", param, fallback="")
+
+    def setConfigValue(self, param, value):
+        self.config.set("Locations", param, value)
+        self.config.write()
+
 
 if __name__ == "__main__":
     # nc = True
