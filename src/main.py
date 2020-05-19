@@ -393,10 +393,10 @@ class Locations(MDApp):
                 self.mapview.remove_marker(markerOld)
                 del self.markerMap[k]
 
-        sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
-        # self.dbinst.fillWith(sheetValues)
-        # markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
-        markers = [[float(sv[3].replace(",",".")), float(sv[4].replace(",","."))] for sv in sheetValues]
+        if True or plyer.wifi.is_enabled(): # ??
+            sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
+            self.dbinst.fillWith(sheetValues)
+        markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
         for marker in markers:
             self.add_marker(marker[0], marker[1])
 

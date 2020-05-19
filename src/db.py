@@ -35,19 +35,30 @@ class DB():
         self.aliasname = None
         self.tabellenname = self.baseJS.get("db_tabellenname")
         self.stellen = self.baseJS.get("gps").get("nachkommastellen")
+        self.colnames = {}
+        self.floatcols = {}
         db = utils.getDataDir() + "/" + self.baseJS.get("db_name")
 
+        colnames = ["creator", "created", "modified", "lat", "lon", "lat_round", "lon_round"]
+        floatcols = [3, 4, 5, 6]
         fields = ["creator TEXT", "created TEXT", "modified TEXT", "lat REAL", "lon REAL", "lat_round STRING",
                   "lon_round STRING"]
-        for feld in self.baseJS.get("daten").get("felder"):
-            fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
-        fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT FAIL")
+        for i, feld in enumerate(self.baseJS.get("daten").get("felder")):
+            name = feld.get("name")
+            colnames.append(name)
+            type = sqtype[feld.get("type")]
+            if type == "REAL":
+                floatcols.append(i)
+            fields.append(name + " " + type)
+        fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT REPLACE")
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_daten (" + ", ".join(fields) + ")"
 
         conn = self.getConn()
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
+        self.colnames["daten"] = colnames
+        self.floatcols["daten"] = floatcols
 
         fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
                   "image_path STRING"]
@@ -57,13 +68,22 @@ class DB():
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
+        self.colnames["images"] = ["creator", "created", "lat", "lon", "lat_round", "lon_round", "image_path"]
+        self.floatcols["images"] = [3, 4, 5, 6]
 
         if self.baseJS.get("zusatz", None) is None:
             return
+        colnames = ["nr", "creator", "created", "modified", "lat", "lon", "lat_round", "lon_round"]
+        floatcols = [4, 5, 6, 7]
         fields = ["nr INTEGER PRIMARY KEY", "creator TEXT", "created TEXT", "modified TEXT",
                   "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING"]
-        for feld in self.baseJS.get("zusatz").get("felder"):
-            fields.append(feld.get("name") + " " + sqtype[feld.get("type")])
+        for i, feld in enumerate(self.baseJS.get("zusatz").get("felder")):
+            name = feld.get("name")
+            colnames.append(name)
+            type = sqtype[feld.get("type")]
+            if type == "REAL":
+                floatcols.append(i)
+            fields.append(name + " " + type)
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_zusatz (" + ", ".join(fields) + ")"
         stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_zusatz ON " + self.tabellenname + "_zusatz (lat_round, lon_round)";
 
@@ -71,6 +91,8 @@ class DB():
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
+        self.colnames["zusatz"] = colnames
+        self.floatcols["zusatz"] = floatcols
 
     def get_daten(self, lat, lon):
         lat_round = str(round(lat, self.stellen))
@@ -135,17 +157,8 @@ class DB():
 
     def insert_daten_from_osm(self, values):  # values = { [lat,lon]: properties }
         conn = self.getConn()
-        try:
-            with conn:
-                c = conn.cursor()
-                # just to get the column names...
-                r = c.execute("SELECT * from " + self.tabellenname + "_daten WHERE lat_round=0 and lon_round=0")
-                c.fetchone()
-                colnames = [":" + t[0] for t in c.description]
-        except Exception as e:
-            utils.printEx("insert_daten_from_osm:", e)
-
-        #now = time.strftime("%Y.%m.%d %H:%M:%S")
+        colnames = self.colnames["daten"]
+        # now = time.strftime("%Y.%m.%d %H:%M:%S")
         for value in values.items():
             lon = value[0][0]
             lat = value[0][1]
@@ -161,8 +174,8 @@ class DB():
             vals["lat_round"] = lat_round
             vals["lon_round"] = lon_round
             vals["creator"] = "OSM"
-            vals["created"] = "OSM" #now
-            vals["modified"] = "OSM" #now
+            vals["created"] = "OSM"  # now
+            vals["modified"] = "OSM"  # now
             vals.update(value)
 
             try:
@@ -341,3 +354,26 @@ class DB():
                 if len(list(r)) > 0:
                     return True
         return False
+
+    def fillWith(self, values):
+        conn = self.getConn()
+        for sheet_name in values.keys():
+            kind = sheet_name.split("_")[-1]  # daten, zusatz
+            zusatz = kind == "zusatz"
+            nrcols = len(self.colnames[kind])
+            qmarks = ",".join(["?" for i in range(nrcols)])
+            floatcols = self.floatcols[kind]
+            vals = values[sheet_name]
+            nulls = [None for i in range(nrcols)]
+            # spreadsheet returns not full rows, and floats with a "," instead of a "."
+            for row in vals:
+                l = len(row)
+                row.extend(nulls[0:nrcols - l])
+                for i in floatcols:
+                    row[i] = float(row[i].replace(",", "."))
+                if zusatz:
+                    row[0] = None
+
+            with conn:
+                r = conn.executemany("INSERT INTO " + sheet_name + " VALUES(" + qmarks + ")", vals)
+                print(r)

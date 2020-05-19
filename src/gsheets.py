@@ -190,18 +190,19 @@ class GSheet(Google):
 
 
     def getValuesWithin(self, minlat, maxlat, minlon, maxlon):
+        minlat = str(round(minlat, self.stellen)).replace(".", ",")
+        maxlat = str(round(maxlat, self.stellen)).replace(".", ",")
+        minlon = str(round(minlon, self.stellen)).replace(".", ",")
+        maxlon = str(round(maxlon, self.stellen)).replace(".", ",")
+        ret = {}
         for sheet_name in self.sheet_names:
-            minlat = str(round(minlat, self.stellen)).replace(".", ",")
-            maxlat = str(round(maxlat, self.stellen)).replace(".", ",")
-            minlon = str(round(minlon, self.stellen)).replace(".", ",")
-            maxlon = str(round(maxlon, self.stellen)).replace(".", ",")
-
             # assume that lat_round and lon_round are adjacent, so that values is a list of 2-tuples
             range = self.column_range(sheet_name, "lat_round", "lon_round")
             values = self.getValues(sheet_name, range)
             ranges = [sheet_name + "!" +str(i+1)+":"+str(i+1) for i,v in enumerate(values) if minlat < v[0] < maxlat and minlon < v[1] < maxlon]
             values = self.batchget(ranges)
-            return values
+            ret[sheet_name] = values
+        return ret
 
 
 class GDrive(Google):
