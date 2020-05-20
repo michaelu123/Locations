@@ -174,8 +174,8 @@ class DB():
             vals["lat_round"] = lat_round
             vals["lon_round"] = lon_round
             vals["creator"] = "OSM"
-            vals["created"] = "OSM"  # now
-            vals["modified"] = "OSM"  # now
+            vals["created"] = "OSM"
+            vals["modified"] = "OSM"
             vals.update(value)
 
             try:
@@ -301,10 +301,12 @@ class DB():
                       "_daten WHERE lat_round > ? and lat_round < ? and lon_round > ? and lon_round < ?",
                       (minlat, maxlat, minlon, maxlon))
             vals_daten = set(c.fetchall())
+
             c.execute("SELECT lat, lon from " + self.tabellenname +
                       "_images WHERE lat_round > ? and lat_round < ? and lon_round > ? and lon_round < ?",
                       (minlat, maxlat, minlon, maxlon))
             vals_images = set(c.fetchall())
+
             if self.baseJS.get("zusatz", None) is not None:
                 c.execute("SELECT lat, lon from " + self.tabellenname +
                           "_zusatz WHERE lat_round > ? and lat_round < ? and lon_round > ? and lon_round < ?",
@@ -312,6 +314,8 @@ class DB():
                 vals_zusatz = set(c.fetchall())
             else:
                 vals_zusatz = set()
+            # ?? using set of floats instead of string lat_round/lon_round?
+            # OSM uses apparently 7 digits after dot
             return vals_images.union(vals_daten).union(vals_zusatz)
 
     def existsImage(self, lat, lon):
@@ -357,6 +361,7 @@ class DB():
 
     def fillWith(self, values):
         conn = self.getConn()
+        # sheet_name == tabellenname
         for sheet_name in values.keys():
             kind = sheet_name.split("_")[-1]  # daten, zusatz
             zusatz = kind == "zusatz"
@@ -368,7 +373,9 @@ class DB():
             # spreadsheet returns not full rows, and floats with a "," instead of a "."
             for row in vals:
                 l = len(row)
+                # data from spreadsheet have varying number of columns, fill up with None values
                 row.extend(nulls[0:nrcols - l])
+                # data from spreadsheet in germany have comma as decimal "point" and come as strings
                 for i in floatcols:
                     row[i] = float(row[i].replace(",", "."))
                 if zusatz:
@@ -387,7 +394,13 @@ class DB():
             r = c.execute("SELECT * FROM " + tabellenname + " WHERE creator = ? and modified like ? and modified > ?",
                           (self.aliasname, since[0:4] + "%", since))
             result[tabellenname] = r.fetchall()
+
             tabellenname = self.tabellenname + "_zusatz"
+            r = c.execute("SELECT * FROM " + tabellenname + " WHERE creator = ? and modified like ? and modified > ?",
+                          (self.aliasname, since[0:4] + "%", since))
+            result[tabellenname] = r.fetchall()
+
+            tabellenname = self.tabellenname + "_images"
             r = c.execute("SELECT * FROM " + tabellenname + " WHERE creator = ? and modified like ? and modified > ?",
                           (self.aliasname, since[0:4] + "%", since))
             result[tabellenname] = r.fetchall()

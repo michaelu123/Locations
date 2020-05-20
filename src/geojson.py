@@ -3,6 +3,7 @@ import json
 
 import config
 import db
+import gsheets
 
 paths = [r"C:\Users\Michael\Downloads\2020-04-26_Fahrradabstellplätze_München_Punkte.geojson",
          r"C:\Users\Michael\Downloads\2020-04-26_Fahrradabstellplätze_München_Flächen.geojson",
@@ -72,6 +73,8 @@ class OSM:
                     geoType = geomJS.get("type")
                     geoCoords = geomJS.get("coordinates")
                     coord = mean(geoCoords)
+                    # OSM has 7 digits after .
+                    coord = [round(coord[0], 7), round(coord[1], 7)]
 
                     nrTotal += 1
                     geoProps = featureJS.get("properties")
@@ -100,6 +103,8 @@ class OSM:
                     if len(valuesStr) != 0:
                         print(coord, ", ".join(valuesStr))
                         nrProps += 1
+                    if res.get(tuple(coord)) is not None:
+                        print("duplicate", coord, featureJS)
                     res[tuple(coord)] = values
         print("Total", nrTotal, "Props", nrProps, "Diff", nrTotal - nrProps)
         print("Props set:", list(propSet))
@@ -109,10 +114,15 @@ class OSM:
         self.baseConfig = config.Config()
         base = "Abstellanlagen"
         self.baseJS = self.baseConfig.getBase(base)
-        self.dbinst = db.DB.instance()
-        self.dbinst.initDB(self)
         values = self.conv()
-        self.dbinst.insert_daten_from_osm(values)
+        if True:
+            return
+        #self.dbinst = db.DB.instance()
+        #self.dbinst.initDB(self)
+        #self.dbinst.insert_daten_from_osm(values)
+
+        gsheet = gsheets.GSheet(self)
+        gsheet.insert_daten_from_osm(values)
         # duplicate: 48.12553483, 11.66346097
 
 osm = OSM()
