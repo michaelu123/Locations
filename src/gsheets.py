@@ -1,23 +1,19 @@
 # https://developers.google.com/sheets/api/quickstart/python
-# https://developers.google.com/photos/library/reference/rest/v1/mediaItems
-# https://developers.google.com/photos/library/guides/access-media-items
 
 # sheets v4 and drive v3 seen here:
 # https://www.googleapis.com/discovery/v1/apis/
 
-# https://stackoverflow.com/questions/50573196/access-google-photo-api-with-python-using-google-api-python-client
 import os
 import pickle
 import sys
 
-from google.auth.transport.requests import Request, AuthorizedSession
+from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 import config
 import utils
 
-#          'https://www.googleapis.com/auth/drive.file',
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
           'https://www.googleapis.com/auth/photoslibrary']
 
@@ -224,105 +220,6 @@ class GSheet(Google):
         self.appendValues("osm", values)
 
 
-class GPhoto(Google):
-    def __init__(self):
-        self.app = app
-        self.baseJS = app.baseJS
-        self.stellen = self.baseJS.get("gps").get("nachkommastellen")
-        creds = self.getCreds()
-        self.servicePH = build('photoslibrary', 'v1', credentials=creds)
-
-        # print("pl", dir(self.servicePH))
-        # # ['albums', 'mediaItems','new_batch_http_request', 'sharedAlbums']
-        # print("al", dir(self.servicePH.albums()))
-        # # 'addEnrichment', 'batchAddMediaItems', 'batchRemoveMediaItems', 'create', 'get', 'list', 'list_next', 'share', 'unshare']
-        # print("mi", dir(self.servicePH.mediaItems()))
-        # # ['batchCreate', 'batchGet', 'get', 'list', 'list_next', 'search', 'search_next']
-        # print("bc", dir(self.servicePH.mediaItems().batchCreate()))
-        # # ['add_response_callback', 'body', 'body_size', 'execute', 'from_json', 'headers',
-        # # 'http', 'method', 'methodId', 'next_chunk', 'postproc', 'response_callbacks', 'resumable',
-        # # 'resumable_progress', 'resumable_uri', 'to_json', 'uri'
-
-        self.album_name = self.baseJS.get("db_tabellenname")  # use also as album name
-        self.album_id = self.create_or_retrieve_album()
-
-    def getAlbums(self):
-        # Call the Photo v1 API
-        results = self.servicePH.albums().list(
-            pageSize=10, fields="nextPageToken,albums(id,title)").execute()
-        items = results.get('albums', [])
-        return items
-
-    def create_or_retrieve_album(self):
-        # Find albums to see if one matches album_title
-        for a in self.getAlbums():
-            if a["title"] == self.album_name:
-                album_id = a["id"]
-                return album_id
-        # No matches, create new album
-        create_album_body = {"album": {"title": self.album_name}}
-        resp = self.servicePH.albums().create(body=create_album_body).execute()
-        if "id" in resp:
-            return resp['id']
-        else:
-            raise RuntimeError(
-                "Could not create photo album '\{0}\'. Server Response: {1}".format(self.album_name, resp))
-
-    # from https://github.com/eshmu/gphotos-upload
-    # or https://learndataanalysis.org/upload-media-items-google-photos-api-and-python-part-4/
-    # photo_objs = { "filepath": path, "desc": description }
-    # we add "token": uploadtoken, "id": mediaItemId
-    # Achtung: Es gibt ein Limit von 20000 Photos pro Album!
-    def upload_photos(self, photo_objs):
-        self.session = AuthorizedSession(self.getCreds())
-        # interrupt upload if an upload was requested but could not be created
-        self.session.headers["Content-type"] = "application/octet-stream"
-        self.session.headers["X-Goog-Upload-Protocol"] = "raw"
-        for obj in photo_objs:
-            try:
-                photo_file_name = obj["filepath"]
-                photo_file = open(photo_file_name, mode='rb')
-                photo_bytes = photo_file.read()
-            except OSError as err:
-                raise RuntimeError("Could not read file \'{0}\' -- {1}".format(photo_file_name, err))
-            basename = os.path.basename(photo_file_name)
-            obj["basename"] = basename
-            self.session.headers["X-Goog-Upload-File-Name"] = basename
-            upload_token = self.session.post('https://photoslibrary.googleapis.com/v1/uploads', photo_bytes)
-            if (upload_token.status_code == 200) and (upload_token.content):
-                obj["token"] = upload_token.content.decode()
-
-        create_body = {
-            "albumId": self.album_id,
-            "newMediaItems": [
-                {
-                    "description": obj["desc"],
-                    "simpleMediaItem":
-                        {
-                            "fileName": obj["basename"],
-                            "uploadToken": obj["token"]
-                        }
-                }
-                for obj in photo_objs
-            ]
-        }
-        resp = self.servicePH.mediaItems().batchCreate(body=create_body).execute()
-        print("Server response: {}".format(resp))
-        if "newMediaItemResults" in resp:
-            for result in resp["newMediaItemResults"]:
-                status = result["status"]
-                if status.get("code") and (status.get("code") > 0):
-                    raise RuntimeError(
-                        "Could not add \'{0}\' to album -- {1}".format(result["filename"], status["message"]))
-                else:
-                    mediaItem = result["mediaItem"]
-                    for obj in photo_objs:
-                        if obj["filepath"].endswith(mediaItem["filename"]):
-                            obj["id"] = mediaItem["id"]
-        else:
-            raise RuntimeError("Could not add photos to library. Server Response -- {0}".format(resp))
-
-
 class App:
     def __init__(self):
         cfg = config.Config()
@@ -342,84 +239,12 @@ def testSheet(app):
         # values = [["MUH", "OSM", "OSM", 48.1412437, 11.5594636, "48.14124", "11.55946"]]
         # values = [[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20]]
         # gsheet.appendValues(sheet_name, values)
+
         range = gsheet.column_range(sheet_name, "lat_round", "lon_round")
         values = gsheet.getValues(sheet_name, range)
-
-
-def testPhoto(app):
-    gph = GPhoto()
-    # gph.getAlbumsViaService()
-    photo_file_list = ["images/108-0890_IMG.jpg", "images/108-0892_IMG.jpg"]
-    photo_objs = [{"filepath": path, "desc": path[7:15]} for path in photo_file_list]
-    print(photo_objs)
-    gph.upload_photos(photo_objs)
-    print(photo_objs)
-    """
-    [
-        {'filepath': 'images/108-0890_IMG.jpg', 
-         'desc': '108-0890', 
-         'basename': '108-0890_IMG.jpg', 
-         'token': 'CAISiQMAqD4uLWdpTAHokgTX+1BkucQXw609wn0xAfie0xnSHpRXnMyt2vGPaRczUQQmEfd9ElToE39sFcmdB5PcLbzvK5iAbYPZDlxOCaPTFa22uI7dzyGDmchyp1916eCDsdfQ/j8HUJdhDSIau5tkxITsGQGmEi4mVmW7K1nGScOewbU6N2ZBeo7grMf7u7+VYY/Znpz5MIdy+YwPvg1IaRzpNqHD1NNdyRXJHy2v091OBmmaudoB0o7Df32msEwTtfYcd/+7D/RG39zGZ5r1q1KmIt8Glg+pWLhUpRx/+Ou9LvHbs0SFwuCYowGZQEg5nZbd9mcLmLBDvKbWPQSAGyMB1fVyIdX6d3XcqF4sZgoD6HgXqOnv+EQjVPgDYeVs9nQtqNtSZjqivMfX3spKvAFLfWL3CvGJnxLcAvg4DYa1/tReCZ6PuIqlDOHjFeumtFL92v5f+qJ7Btlal5eK0XdBBXEZ4sbBt96/+jIlx3Ng42FC6MAQ8GrCA6Ub5QZat++16XPAUsu4K28', 
-         'id': 'ACKY64ut147fmVuJ9rn_L38vK_-Xyf2m9fhbHShoXnTjtDrH1eBCR24hIhxYlkLF-65dMr4onkmIal6tqEmCTFs-nDBiJKFTgQ'
-         }, 
-        {'filepath': 'images/108-0892_IMG.jpg', 
-         'desc': '108-0892', 
-         'basename': '108-0892_IMG.jpg', 
-         'token': 'CAISiQMAqD4uLZaWBq2jf/7foIArE59kBAs5DAVHrDBLD+CC5gRoXELc+so+Lz286YzzY84sj2Q6GuaoBoyGn6UeVHtj0i33kUiLojhqkaInQgFFADVBFIn+h1klBHRpDwlLQffRnUx4giuFpQ4LnDD1fldBU/UvKJ5E64SXsAnG92nGS72DFnw26uN7L9zpAOOdI9YAgzTh9QQOX/K17YGuMgFYyvbmSxpuHYGmqyoCkg30VMmpobc+F8m6Lxw+MkIGTWc20J71x7UBXZRRfhqLXQR7kWf1mXa4ndNLNyzJcybAWYU3afbV8LQLGIos1oIhpx+sD0ETfWn9P6K1MfHwAWfsktRyroqOCOQtC1xTOJB0SzUSVXKdO90wwsU1B+PuIeYr+iJPja6MLE9DIYttkKhEw/xK53rC4sIeazDU60q0CG1s28qdVgV94q/syuTUhE5qcedf33WOebYqDERLmh3kQtFvsth4auSnoY72rVs8a+NfkdYe/wmWNRisqwb7Pk9S0l3DHP7JxiU', 
-         'id': 'ACKY64tCnuPHj3n6FotGexaADmysKTVdqT19klegKel5P853FGrfxNQ9vFKsfwwT4uRcgrPL0tT7nY8Mj7yf8DHgffCQW_tK8Q'
-         }
-    ]
-    """
-
+        print(values)
 
 
 if __name__ == "__main__":
     app = App()
-    testPhoto(app)
-"""
-
-Server response: {
-'id': 'ACKY64tFCkeXqIYLtDLAhL4ghmW0M25y-pAucOXFDQfgajRVldpKXPrFmrtFRNhekEjMB4zciQK9', 
-'title': 'abstellanlagen', 
-'productUrl': 
-'https://photos.google.com/lr/album/ACKY64tFCkeXqIYLtDLAhL4ghmW0M25y-pAucOXFDQfgajRVldpKXPrFmrtFRNhekEjMB4zciQK9', 
-'isWriteable': True}
-
-
-Server response: {
-    'newMediaItemResults': 
-    [
-        {
-            'uploadToken': 'CAISiQMAqD4uLRon7FUnOOsFhBdkCCUpdbmgWnZ65XvhWtptKxmljaAMqExjUgN3MpAkVf1C82LJvv1ieDGYXKvbC9RKj0am26g2diUQ4vmRkGehoe5juaYP2B5BdfbAf74fdWTh1VG1qnowLIji/91vG00uMADrc+5A/9uY2MBTMSs2I5h18L/ohhol4uUaaVm/4FrXX8WqzZ6gX4jM+219/cF8UoYzVapcE/k5x1sDy+xLFtKmYBe7FUyAuV0/pPSgtkN+GIH8E30PAjv2wjTlied/+mqeUxpLa5pc3HdQezkhrh/dp5oMGl9twP+nLbCbNN8r2lUju5SgeMDRY90aQNxe518d85A0+qtGjMkkx4YZz6l8nCmy47mLkJfmlDyDT53GHj5lQ0Yg909PPhL7oaoz3jvEZVKXbIS4tFJMG/4FYxxenK7ZNXIjpzbWw7Vz2fSIIzgdIWBgwezPIxS73hyyy7WCyOOqzkNjqVKUfFw3eAxfRk1ooJJyS0oHhZBs6BJSsQUX21irC24',
-            'status': {'message': 'Success'}, 
-            'mediaItem': {
-                'id': 'ACKY64ut147fmVuJ9rn_L38vK_-Xyf2m9fhbHShoXnTjtDrH1eBCR24hIhxYlkLF-65dMr4onkmIal6tqEmCTFs-nDBiJKFTgQ', 
-                'productUrl': 'https://photos.google.com/lr/album/ACKY64tFCkeXqIYLtDLAhL4ghmW0M25y-pAucOXFDQfgajRVldpKXPrFmrtFRNhekEjMB4zciQK9/photo/ACKY64ut147fmVuJ9rn_L38vK_-Xyf2m9fhbHShoXnTjtDrH1eBCR24hIhxYlkLF-65dMr4onkmIal6tqEmCTFs-nDBiJKFTgQ', 
-                'mimeType': 'image/jpeg', 
-                'mediaMetadata': {
-                    'creationTime': '2002-12-29T12:19:35Z', 
-                    'width': '1600', 
-                    'height': '1200'
-                }, 
-                'filename': '108-0890_IMG.jpg'
-            }
-        }, 
-        {
-            'uploadToken': 'CAISiQMAqD4uLZW8VIYZ5crFmJOAz5U/sxno2f+2bSiADpYjV1ohbEot6qY5o+xMIkGO/Q2NTXbdlY+9SXCMmk0/s+G1khCKGtD66VSH//q44zdYiFT1FcT86j4uC1kZto3zEDfA5tavxzAX8d323VPhRRMuGACMroU643/i77Tk+osaGfIq9aoGkCBDv7FTa+IMACXdlWzbzIrNSgq6A2ToDjXvIXb9g3LgIt6v9WuAgg7VZ5ZbbmyhfvKG4q87sz0t+lsZjqXATKgIMRPXnjEk3lkEVFJF2H1VVOpUiu3CFqK2Gb7bSCqcWbm9esxwgIghHkGMpn9kr60DpK8Ds3PETQLTIrvjfyTWEUacnNdb9VMs1I9zoIaAiCorm66WaM1O2g1C5gaJRJdjWQWp4b989/fjo9H1r9qAMH2uCVnU1fl3MRPChVt0ndz2x2cq/HCUKsWcjL9UdiTHTV8jKPxFAUT8avHVc62MMorbclVyYhA4d0CuK9Nn7QmmjYkgbpmPUrqhDMxp9AKLpKw',
-             'status': {'message': 'Success'}, 
-             'mediaItem': {
-                'id': 'ACKY64tCnuPHj3n6FotGexaADmysKTVdqT19klegKel5P853FGrfxNQ9vFKsfwwT4uRcgrPL0tT7nY8Mj7yf8DHgffCQW_tK8Q', 
-                'productUrl': 'https://photos.google.com/lr/album/ACKY64tFCkeXqIYLtDLAhL4ghmW0M25y-pAucOXFDQfgajRVldpKXPrFmrtFRNhekEjMB4zciQK9/photo/ACKY64tCnuPHj3n6FotGexaADmysKTVdqT19klegKel5P853FGrfxNQ9vFKsfwwT4uRcgrPL0tT7nY8Mj7yf8DHgffCQW_tK8Q', 
-                'mimeType': 'image/jpeg', 
-                'mediaMetadata': {
-                    'creationTime': '2002-12-29T12:28:13Z', 
-                    'width': '1600', 
-                    'height': '1200'
-                }, 
-                'filename': '108-0892_IMG.jpg'
-             }
-        }
-    ]
-}
-
-"""
+    testSheet(app)
