@@ -6,7 +6,7 @@ import traceback
 from collections import Set, Mapping, deque
 from numbers import Number
 
-photo_image_path = "photo_camera-black.png"
+camera_icon = "photo_camera-black.png"
 
 
 def printEx(msg, e):

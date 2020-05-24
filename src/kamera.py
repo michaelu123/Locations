@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 
 from kivy import platform
@@ -18,6 +19,11 @@ class Kamera:
     def do_capture(self, lat, lon):
         self.lat = lat
         self.lon = lon
+        lat_round = str(round(lat, self.stellen))
+        lon_round = str(round(lon, self.stellen))
+        self.filename = lat_round + "_" + lon_round + "_" + time.strftime("%Y%m%d_%H%M%S") + ".jpg"
+        self.filepath = utils.getDataDir() + "/images/" + self.filename
+
         if platform != "android":
             self.app.msgDialog("OS-Spezifisch", "Kamera ist nur auf Android verfügbar")
             if self.toggle:
@@ -26,19 +32,13 @@ class Kamera:
             else:
                 filename = "108-0892_IMG.jpg"
                 self.toggle = True
-            self.filepath = utils.getDataDir() + "/images/" + filename
-            if not os.path.exists(self.filepath):
-                raise Exception("???")
-            self.app.daten.addImage(filename, self.filepath, lat, lon)
+            shutil.copyfile("./images/" + filename, self.filepath)
+            self.app.daten.addImage(self.filename, self.filepath, lat, lon)
             #self.app.root.sm.current = "Daten"
             self.app.on_pause()
             self.app.on_resume()
             return
 
-        lat_round = str(round(lat, self.stellen))
-        lon_round = str(round(lon, self.stellen))
-        self.filename = lat_round + "_" + lon_round + "_" + time.strftime("%Y%m%d_%H%M%S") + ".jpg"
-        self.filepath = utils.getDataDir() + "/images/" + self.filename
         try:
             self.app.camera.take_picture(filename=self.filepath, on_complete=self.camera_callback)
         except NotImplementedError:

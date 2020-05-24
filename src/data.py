@@ -30,7 +30,7 @@ Builder.load_string("""
                 on_release: root.show_zusatz()
             Image:
                 id: image
-                source: root.image_list[0]
+                source: root.image_list[0][0]
                 on_touch_down: root.img_touch_down(args)
                 canvas:
                     Color:
@@ -172,9 +172,8 @@ class Daten(Form):
         self.fieldsJS = self.app.baseJS.get("daten").get("felder")
         self.protected = self.app.baseJS.get("protected", False)
         self.fields = {}
-        self.impath = utils.getDataDir() + "/images/"
 
-        self.image_list = ["./images/" + utils.photo_image_path]
+        self.image_list = [("./images/" + utils.camera_icon, None)]
         self.dbinst = db.DB.instance()
         super().__init__(**kwargs)
         if self.app.baseJS.get("zusatz", None) is None:
@@ -186,17 +185,22 @@ class Daten(Form):
         # get images for lat/lon
         mv = self.app.mapview
         self.lat, self.lon = mv.lat, mv.lon
-        imgs = list(set(self.dbinst.get_images(self.lat, self.lon)))
+        img_tuples = self.dbinst.get_images(self.lat, self.lon)
+        imlist = []
+        for tuple in img_tuples:  # (image_path, None)  or (mediaId, image_url)
+            if tuple[1]:
+                imlist.append((self.app.gphoto.getImage(tuple[0], w=200, h=200), tuple[0]))
+            else:
+                imlist.append((utils.getDataDir() + "/images/" + tuple[0], None))
         # photo_image must be the last or the only one
-        imlist = [self.impath + p for p in imgs]
-        imlist.append("./images/" + utils.photo_image_path)
+        imlist.append(("./images/" + utils.camera_icon, None))
 
         imlist2 = []
         for p in imlist:
-            if os.path.exists(p):
+            if os.path.exists(p[0]):
                 imlist2.append(p)
             else:
-                print("cannot access", p)
+                print("cannot access", p[0])
                 # raise Exception("cannot access " + p)
         self.image_list = imlist2
 
@@ -230,7 +234,7 @@ class Daten(Form):
 
     def addImage(self, filename, filepath, lat, lon):
         self.dbinst.insert_image(filename, lat, lon)
-        self.image_list.insert(0, filepath)
+        self.image_list.insert(0, (filepath, None))
 
     def show_zusatz(self):
         if self.app.checkAlias():

@@ -15,7 +15,9 @@ import config
 import utils
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
-          'https://www.googleapis.com/auth/photoslibrary']
+          'https://www.googleapis.com/auth/photoslibrary',
+          'https://www.googleapis.com/auth/photoslibrary.sharing',
+          'https://www.googleapis.com/auth/userinfo.profile']
 
 
 def pyinst(path):
@@ -58,6 +60,32 @@ class Google:
                 pickle.dump(creds, token)
         return creds
 
+    def get_user_info(self, creds):
+        """Send a request to the UserInfo API to retrieve the user's information.
+        Args:
+          credentials: oauth2client.client.OAuth2Credentials instance to authorize the
+                       request.
+        Returns:
+          User information as a dict.
+        """
+
+        user_info_service = build('oauth2', 'v2', credentials=creds)
+        try:
+            user_info = user_info_service.userinfo().get().execute()
+            if user_info and user_info.get('id'):
+                return user_info
+        except Exception as e:
+            utils.printEx('cannot get user info', e)
+        return None
+        # {
+        #     'id': '101083883722235859400',
+        #     'name': 'Michael Uhlenberg ADFC München',
+        #     'given_name': 'Michael',
+        #     'family_name': 'Uhlenberg ADFC München',
+        #     'picture': 'https://lh3.googleusercontent.com/a-/AOh14GgUHWrbCrmA4YLp1fHYBKrRexZDWfC96h09dNze5w',
+        #     'locale': 'de'
+        # }
+
 
 class GSheet(Google):
     def __init__(self, app):
@@ -93,18 +121,20 @@ class GSheet(Google):
     def checkSheets(self):
         sheet_props = self.ssheet.get(spreadsheetId=self.spreadsheet_id, fields="sheets.properties").execute()
         sheet_names_exi = [sheet_prop["properties"]["title"] for sheet_prop in sheet_props["sheets"]]
-        print(sheet_names_exi)
+        print("Existing sheets", sheet_names_exi)
         for sheet_name in self.sheet_names:
             kind = sheet_name.split("_")[-1]  # daten, zusatz
-            names = ["nr"] if kind == "zusatz" else []
-            names.extend(["creator", "created", "modified", "lat", "lon", "lat_round", "lon_round"])
-            if kind == "images":
-                names.append("image_path")
-            else:
+            if kind == "daten":
+                names = ["creator", "created", "modified", "lat", "lon", "lat_round", "lon_round"]
+            elif kind == "images":
+                names = ["creator", "created", "lat", "lon", "lat_round", "lon_round", "image_path", "image_url"]
+            elif kind == "zusatz":
+                names = ["nr", "creator", "created", "modified", "lat", "lon", "lat_round", "lon_round"]
+            if kind != "images":
                 names.extend([feld.get("name") for feld in self.baseJS.get(kind).get("felder")])
             self.soll_headers[sheet_name] = names
             if sheet_name not in sheet_names_exi:
-                self.addSheet(sheet_name, len(self.soll_headers[sheet_name]))
+                self.addSheet(sheet_name, len(self.soll_headers[sheet_name]) + 5)  # some reserve for future fields
 
     def addSheet(self, sheet_name, nrCols):
         body = {
@@ -123,7 +153,7 @@ class GSheet(Google):
         }
         result = self.ssheet.batchUpdate(spreadsheetId=self.spreadsheet_id, body=body).execute()
         properties = result['replies'][0]['addSheet']['properties']
-        print("props", properties)
+        print("added sheet props", properties)
 
     def checkColumns(self):
         # Prüfen ob im sheet die Felder angelegt sind
@@ -145,7 +175,7 @@ class GSheet(Google):
         range = sheet_name + "!" + chr(ord('A') + col) + str(row + 1)  # 0,0-> A1, 1,2->C2 2,1->B3
         result = self.ssheet.values().update(spreadsheetId=self.spreadsheet_id, range=range, valueInputOption="RAW",
                                              body=body).execute()
-        print("result2", result)
+        print("addValue", result)
 
     def appendValues(self, sheet_name, values):
         body = {
@@ -155,12 +185,12 @@ class GSheet(Google):
         result = self.ssheet.values().append(spreadsheetId=self.spreadsheet_id, range=sheet_name,
                                              valueInputOption="RAW",
                                              body=body).execute()
-        print("result3", result)
+        print("appendValue", result)
 
     def getValues(self, sheet_name, a1range=""):
         result = self.ssheet.values().get(spreadsheetId=self.spreadsheet_id,
                                           range=sheet_name + a1range).execute().get('values', [])
-        print("result4", result)
+        print("getValues", sheet_name, a1range, result[0:3])
         return result
 
     def column_range(self, sheet_name, hdr1, hdr2):
@@ -176,7 +206,7 @@ class GSheet(Google):
         result = self.ssheet.values().batchGet(spreadsheetId=self.spreadsheet_id,
                                                ranges=ranges).execute().get('valueRanges', [])
         result = [r.get("values")[0] for r in result]
-        print("result4", result)
+        print("batchget", ranges[0:3], result[0:3])
         return result
 
     def getValuesWithin(self, minlat, maxlat, minlon, maxlon):
@@ -242,7 +272,7 @@ def testSheet(app):
 
         range = gsheet.column_range(sheet_name, "lat_round", "lon_round")
         values = gsheet.getValues(sheet_name, range)
-        print(values)
+        print("values", values)
 
 
 if __name__ == "__main__":

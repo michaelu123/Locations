@@ -29,7 +29,7 @@ source.exclude_dirs = tests, bin, buildozer
 
 # (list) List of exclusions using pattern matching
 #source.exclude_patterns = license,images/*/*.jpg,cache/osm-de/*.png
-source.exclude_patterns = cache/*.png
+source.exclude_patterns = cache/*.png,base.json,cprof.*,*.db, *.ini,token.*,url.txt,images/[0-9].*.jpg
 
 # (str) Application versioning (method 1)
 version = 0.1

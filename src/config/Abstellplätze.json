@@ -2,8 +2,8 @@
   "name": "Abstellplätze",
   "db_name": "Abstellplätze.db",
   "db_tabellenname": "abstellplätze",
-  "spreadsheet_id": "",
-  "sheet_name": "",
+  "spreadsheet_id": "1fcI_RFccnq6eLx95VqCiKkPSvm4QSvSYr6HxFLzMPUM",
+  "shareToken": "AOVP0rRbGb0U7qiIvr0CRxpHquum9vbkxuIp0O_tr7B-0001o6WQ39lbvyVTzBWZZDSnNon3wNMdSFkgM5BYiRDzAOho4Tq7JBoPwkLfMd2jU-YsSF_efxWzjq_6h3B0yXo",
   "protected": false,
   "gps": {
     "min_lat": 48.0,

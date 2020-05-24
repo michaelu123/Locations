@@ -3,7 +3,7 @@
   "db_name": "Abstellanlagen.db",
   "db_tabellenname": "abstellanlagen",
   "spreadsheet_id": "1ULqk5oKgA78pprCupGxApRKTHDTl9fJzECXYEO4QXJ8",
-  "album_id": "ACKY64tFCkeXqIYLtDLAhL4ghmW0M25y-pAucOXFDQfgajRVldpKXPrFmrtFRNhekEjMB4zciQK9",
+  "shareToken": "AOVP0rQZIEqQOiIUX3O86yxslicTgrKTPZqJI38QuPJkss9_FWn2MrXN4DnB0Ne1B36BPWG3uL6uaABf0dTd2ns0PrgTy_xolYIe0OFCJdxZPg4FPWXiwEifK1eHXekQd0I",
   "protected": false,
   "gps": {
     "min_lat": 48.0,

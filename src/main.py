@@ -18,6 +18,7 @@ from kivy.uix.widget import Widget
 from kivy.utils import platform
 from kivy_garden.mapview import MapMarker
 from kivymd.app import MDApp
+from kivymd.toast import toast
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import OneLineAvatarIconListItem
@@ -25,6 +26,7 @@ from kivymd.uix.list import OneLineAvatarIconListItem
 import bugs
 import config
 import db
+import gphotos
 import gsheets
 import utils
 from data import Daten, Zusatz
@@ -250,16 +252,22 @@ class Karte(Screen):
 
 
 class Single(Screen):
-    pass
+    def __init__(self, app, **kwargs):
+        self.app = app
+        super().__init__(**kwargs)
 
 
 class Images(Screen):
+    def __init__(self, app, **kwargs):
+        self.app = app
+        super().__init__(**kwargs)
+
     def init(self):
         pass
 
     def show_images(self):
-        # image_list must always contain photo_image_path, otherwise image_list[0] in <Images> fails
-        copy_list = [im for im in app.daten.image_list if not im.endswith(utils.photo_image_path)]
+        # image_list must always contain camera_icon, otherwise image_list[0] in <Images> fails
+        copy_list = [im for im in app.daten.image_list if not im[0].endswith(utils.camera_icon)]
         l = len(copy_list)
         if l == 0:
             app.do_capture()
@@ -269,8 +277,9 @@ class Images(Screen):
             return
         self.bl.clear_widgets()
         for i, cp in enumerate(copy_list):
-            im = AsyncImage(source=cp, on_touch_down=self.show_single_image)
+            im = AsyncImage(source=cp[0], on_touch_down=self.show_single_image)
             im.size = app.root.sm.size
+            im.mediaId = cp[1]
             im.number = i
             # without auto_bring_to_front=False the boxlayout children are reshuffled
             sc = Scatter(do_rotation=False, do_translation=False, do_scale=False, size=im.size,
@@ -279,7 +288,16 @@ class Images(Screen):
             self.bl.add_widget(sc)
 
     def show_single_image(self, *args):
-        src = args[0].source if isinstance(args[0], AsyncImage) else args[0]
+        # if called for a single gphoto, show the thumbnail
+        # when clicked on the thumbnail, show the full image
+        if isinstance(args[0], AsyncImage):
+            if args[0].mediaId is None:
+                src = args[0].source
+            else:
+                maxdim = self.app.getConfigValue("maxdim", 1024)
+                src = self.app.gphoto.getImage(args[0].mediaId, w=maxdim, h=maxdim)
+        else:
+            src = args[0]
         app.single.ids.im.source = src
         app.root.sm.current = "Single"
 
@@ -309,12 +327,12 @@ class Locations(MDApp):
             self.camera = my_camera.MyAndroidCamera()
 
         Window.bind(on_keyboard=self.popScreen)
-        dataDir = utils.getDataDir()
-        os.makedirs(dataDir + "/images", exist_ok=True)
+        os.makedirs(utils.getDataDir() + "/images", exist_ok=True)
         self.markerMap = {}
         self.settings_cls = SettingsWithSidebar
         self.curMarker = None
         self.relocated = 0
+        self.dialog = None
 
         self.baseConfig = config.Config()
         self.error = self.baseConfig.getErrors()
@@ -324,14 +342,14 @@ class Locations(MDApp):
         self.root = Page()
         try:
             base = self.store.get("base")["base"]
-            self.baseConfig.getBase(base)
+            self.baseConfig.getBase(self.base)
         except:
             base = self.baseConfig.getNames()[0]
         print("base", base)
-        self.setup(base)
-        self.dialog = None
-
         # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
+        # print("cwd", os.getcwd())
+        # utils.walk(".")
+        self.setup(base)
         return self.root
 
     def setup(self, base):
@@ -350,11 +368,22 @@ class Locations(MDApp):
         self.root.sm.clear_widgets(sm_screens)
         sm_screens = None
 
+        print("1setup")
+        self.message("Mit Google Sheets verbinden")
         self.gsheet = gsheets.GSheet(self)
+        print("2setup")
+        userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
+        print("3setup", userInfo.get("name"))
+        self.message("Mit Google Photos verbinden als " + userInfo["name"])
+        print("4setup")
+        self.gphoto = gphotos.GPhoto(self)
+        print("5setup")
 
         self.karte = Karte(name="Karte")
         self.root.sm.add_widget(self.karte)
+        print("6setup")
 
+        self.message("Lade Map Marker")
         self.mapview = self.karte.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = self.baseConfig.getMinZoom(self.selected_base)
@@ -364,10 +393,10 @@ class Locations(MDApp):
         self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
         self.mapview._scatter.scale_max: 2.0  # MUH was 3!?
 
-        self.images = Images(name="Images")
+        self.images = Images(self, name="Images")
         self.root.sm.add_widget(self.images)
 
-        self.single = Single(name="Single")
+        self.single = Single(self, name="Single")
         self.root.sm.add_widget(self.single)
 
         self.daten = Daten(self, name="Daten")
@@ -426,8 +455,7 @@ class Locations(MDApp):
             return
         if cur_screen.name == "Single":
             src = cur_screen.im.source
-            if platform == "android":
-                os.remove(src)
+            os.remove(src)
             src = os.path.basename(src)
             lat, lon = self.centerLatLon()
             self.dbinst.delete_images(lat, lon, src)
@@ -466,18 +494,52 @@ class Locations(MDApp):
         self.center_on(lat, lon)
         Clock.schedule_once(self.show_markers, 0)
 
+    def storeImages(self, newImgs):
+        # tuples to list, skip if image_path=row[6] is already a mediaId
+        # assume a mediaId is loooong
+        unsavedImgs = [list(row) for row in newImgs if len(row[6]) < 60]
+        # don't store already saved images again in gphoto:
+        savedImgs = [list(row) for row in newImgs if len(row[6]) > 60]
+        photo_objs = [{"filepath": utils.getDataDir() + "/images/" + row[6],
+                       "desc": row[6][0:row[6].index(".jpg")]} for row in unsavedImgs]
+        if len(photo_objs) > 0:
+            self.gphoto.upload_photos(photo_objs)
+        for i, row in enumerate(unsavedImgs):
+            old_image_path = row[6]
+            new_image_path = photo_objs[i]["id"]
+            new_image_url = photo_objs[i]["url"]
+            self.dbinst.update_imagepath(old_image_path, new_image_path, new_image_url, row[4], row[5])
+            row[6] = new_image_path
+            row[7] = new_image_url
+        # store all of them in gsheets (duplicates removed by gsheet script)
+        unsavedImgs.extend(savedImgs)
+        return unsavedImgs, photo_objs
+
     def storeSheet(self):
         if self.checkAlias():
-            laststored = self.getConfigValue("gespeichert")
-            newvals = self.dbinst.getNewOrChanged(laststored)
-            cnt = 0
-            for sheet_name in newvals.keys():
-                vals = newvals[sheet_name]
-                cnt += len(vals)
-                self.gsheet.appendValues(sheet_name, vals)
-            self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
-            self.msgDialog("Gespeichert", f"Es wurden {cnt} neue oder geänderte Datensätze gespeichert")
-            # ?? self.dbinst.deleteNewOrChanged()
+            Clock.schedule_once(self.storeSheet2, 0)
+
+    def storeSheet2(self, *args):
+        laststored = self.getConfigValue("gespeichert")
+        newvals = self.dbinst.getNewOrChanged(laststored)
+
+        # special case images, store them first in gphotos
+        newImgs = newvals[self.baseJS["db_tabellenname"] + "_images"]
+        newImgs, photo_objs = self.storeImages(newImgs)
+        imgCnt = len(newImgs)
+        newvals[self.baseJS["db_tabellenname"] + "_images"] = newImgs
+
+        recCnt = 0
+        for sheet_name in newvals.keys():
+            vals = newvals[sheet_name]
+            recCnt += len(vals)
+            self.gsheet.appendValues(sheet_name, vals)
+        self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
+        for obj in photo_objs:
+            os.remove(obj["filepath"])
+        self.msgDialog("Gespeichert",
+                       f"Es wurden {imgCnt} Fotos und {recCnt} neue oder geänderte Datensätze gespeichert")
+        # ?? self.dbinst.deleteNewOrChanged()
 
     def center_on(self, lat, lon):
         self.mapview.set_zoom_at(17, 0, 0, 2.0)
@@ -665,6 +727,7 @@ class Locations(MDApp):
             # 'optionsexample': 'options2',
             # 'pathexample': 'c:/temp',
             'gespeichert': '',
+            'maxdim': 1024,
         })
 
     def build_settings(self, settings):
@@ -676,6 +739,11 @@ class Locations(MDApp):
              'desc': 'Datum des letzten Speicherns',
              'section': 'Locations',
              'key': 'gespeichert'},
+            {'type': 'numeric',
+             'title': 'Max Dim',
+             'desc': 'Max photo size from Goggle Photos',
+             'section': 'Locations',
+             'key': 'maxdim'},
             # {'type': 'bool',
             #  'title': 'A boolean setting',
             #  'desc': 'Boolean description text',
@@ -704,12 +772,20 @@ class Locations(MDApp):
     def on_config_change(self, config, section, key, value):
         print(config, section, key, value)
 
-    def getConfigValue(self, param):
-        return self.config.get("Locations", param, fallback="")
+    def getConfigValue(self, param, fallback=""):
+        return self.config.get("Locations", param, fallback=fallback)
 
     def setConfigValue(self, param, value):
         self.config.set("Locations", param, value)
         self.config.write()
+
+    def message(self, m):
+        self.m = m
+        toast(self.m, 1)
+        # Clock.schedule_once(self.message2, 0)
+
+    def message2(self, *args):
+        toast(self.m, 1)
 
 
 if __name__ == "__main__":

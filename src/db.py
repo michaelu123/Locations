@@ -61,15 +61,15 @@ class DB():
         self.floatcols["daten"] = floatcols
 
         fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
-                  "image_path STRING"]
+                  "image_path STRING", "image_url STRING"]
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
         stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_images ON " + self.tabellenname + "_images (lat_round, lon_round)";
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
-        self.colnames["images"] = ["creator", "created", "lat", "lon", "lat_round", "lon_round", "image_path"]
-        self.floatcols["images"] = [3, 4, 5, 6]
+        self.colnames["images"] = ["creator", "created", "lat", "lon", "lat_round", "lon_round", "image_path", "image_url"]
+        self.floatcols["images"] = [2, 3, 4, 5]
 
         if self.baseJS.get("zusatz", None) is None:
             return
@@ -252,10 +252,10 @@ class DB():
         conn = self.getConn()
         with conn:
             c = conn.cursor()
-            r = c.execute("SELECT image_path from " + self.tabellenname
+            r = c.execute("SELECT image_path, image_url from " + self.tabellenname
                           + "_images WHERE lat_round = ? and lon_round = ?", (lat_round, lon_round))
-            # r returns a list of tuples with one element "path"
-            p = [t[0] for t in r]
+            # r returns a list of tuples with two elements "path" and "url"
+            p = [(t[0], t[1]) for t in r]
             return p
 
     def insert_image(self, filename, lat, lon):
@@ -266,17 +266,25 @@ class DB():
             conn = self.getConn()
             with conn:
                 c = conn.cursor()
-
-                fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING",
-                          "lon_round STRING", "image_path STRING"]
-
                 vals = {"creator": self.aliasname, "created": now, "lat": lat, "lon": lon,
-                        "lat_round": lat_round, "lon_round": lon_round, "image_path": filename}
+                        "lat_round": lat_round, "lon_round": lon_round, "image_path": filename, "image_url": None}
                 colnames = [":" + k for k in vals.keys()]
                 c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(colnames) + ")", vals)
             self.app.add_marker(lat, lon)
         except Exception as e:
             utils.printEx("insert_image:", e)
+
+    def update_imagepath(self, old_image_path, new_image_path, new_image_url, lat_round, lon_round):
+        try:
+            conn = self.getConn()
+            with conn:
+                c = conn.cursor()
+                c.execute("UPDATE " + self.tabellenname + "_images set image_path = ?, image_url = ? where " +
+                          "lat_round=? and lon_round=? and image_path=?",
+                               (new_image_path, new_image_url, lat_round, lon_round, old_image_path))
+        except Exception as e:
+            utils.printEx("insert_image:", e)
+
 
     def delete_images(self, lat, lon, image_path):
         lat_round = str(round(lat, self.stellen))
@@ -372,6 +380,9 @@ class DB():
             nulls = [None for i in range(nrcols)]
             # spreadsheet returns not full rows, and floats with a "," instead of a "."
             for row in vals:
+                for i,v in enumerate(row):
+                    if v == "":
+                        row[i] = None
                 l = len(row)
                 # data from spreadsheet have varying number of columns, fill up with None values
                 row.extend(nulls[0:nrcols - l])
@@ -383,7 +394,7 @@ class DB():
 
             with conn:
                 r = conn.executemany("INSERT INTO " + sheet_name + " VALUES(" + qmarks + ")", vals)
-                print(r)
+                print("fillwith", sheet_name, r.rowcount)
 
     def getNewOrChanged(self, since):
         conn = self.getConn()
@@ -401,7 +412,7 @@ class DB():
             result[tabellenname] = r.fetchall()
 
             tabellenname = self.tabellenname + "_images"
-            r = c.execute("SELECT * FROM " + tabellenname + " WHERE creator = ? and modified like ? and modified > ?",
+            r = c.execute("SELECT * FROM " + tabellenname + " WHERE creator = ? and created like ? and created > ?",
                           (self.aliasname, since[0:4] + "%", since))
             result[tabellenname] = r.fetchall()
         return result
