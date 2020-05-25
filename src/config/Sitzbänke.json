@@ -3,7 +3,7 @@
   "db_name": "Sitzbänke.db",
   "db_tabellenname": "sitzbänke",
   "spreadsheet_id": "",
-  "sheet_name": "",
+  "shareToken": "AOVP0rQYbn_wnkdSq6kRR2O7bIsjk446Ci9dsLhmDcuhIfgWcgTi4kH8XNXt1w4DACkvxYuQsThiKaWiw6MxPfzUMYpOm1fIK7Yfy4vLPCWYlvk4zXMMJQmUKizSw48y0pI",
   "gps": {
     "min_lat": 48.1,
     "max_lat": 48.2,

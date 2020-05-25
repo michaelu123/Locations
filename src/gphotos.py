@@ -34,6 +34,8 @@ class GPhoto(Google):
         self.joinSharedAlbum()
 
     # for shared albums: https://developers.google.com/photos/library/guides/share-media
+    # NOTE: shared album MUST be created with this code, using the creds of the app
+    # It must not be created via GPhotos UI!
     def createSharedAlbum(self):
         create_album_body = {"album": {"title": self.album_name}}
         resp = self.servicePH.albums().create(body=create_album_body).execute()
@@ -50,7 +52,6 @@ class GPhoto(Google):
         else:
             raise RuntimeError(
                 "Could not create shared photo album '{0}'. Server Response: {1}".format(self.album_name, resp))
-
         share_album_body = {"sharedAlbumOptions": {"isCollaborative": "true", "isCommentable": "true"}}
         resp = self.servicePH.albums().share(albumId=self.album_id, body=share_album_body).execute()
         print("sharealbum", resp)
@@ -71,6 +72,9 @@ class GPhoto(Google):
         shareToken = self.baseJS.get("shareToken")
         if not shareToken:
             raise ValueError("shareToken nicht konfiguriert")
+        if shareToken == "TODO":
+            self.album_id = None
+            return
         join_shared_album_body = {"shareToken": self.baseJS.get("shareToken")}
         resp = self.servicePH.sharedAlbums().join(body=join_shared_album_body).execute()
         self.album_id = resp["album"]["id"]
@@ -304,24 +308,19 @@ class GPhoto(Google):
                 raise RuntimeError("Could not write file '{0}' -- {1}".format(filename, err))
 
 
-class GPhotoCreateAlbum(Google):
-    def __init__(self, app):
-        self.app = app
-        self.baseJS = app.baseJS
-        creds = self.getCreds()
-        self.servicePH = build('photoslibrary', 'v1', credentials=creds)
-        self.album_name = self.baseJS.get("db_tabellenname")  # use also as album name
-        self.createSharedAlbum()
-
-
-def testPhoto(app):
+def getShareToken(app):
+    # start with a shareToken in config file with value "TODO"
     gph = GPhoto(app)
     userinfo = gph.get_user_info(gph.getCreds())
-    # print("userinfo", userinfo)
-    gph.createSharedAlbum()
-    gph.joinSharedAlbum()
-    if True: return
+    print("userinfo", userinfo)
+    if gph.album_id is None:
+        gph.createSharedAlbum()
 
+
+def test(app):
+    gph = GPhoto(app)
+    userinfo = gph.get_user_info(gph.getCreds())
+    print("userinfo", userinfo)
     photo_file_list = ["images/108-0890_IMG.jpg", "images/108-0892_IMG.jpg"]
     photo_objs = [{"filepath": path, "desc": path[7:15]} for path in photo_file_list]
     # print(photo_objs)
@@ -339,22 +338,11 @@ def testPhoto(app):
 
 
 class App:
-    def __init__(self):
+    def __init__(self, arg):
         cfg = config.Config()
-        self.baseJS = cfg.getBase("Abstellplätze")
+        self.baseJS = cfg.getBase(arg)
 
 
 if __name__ == "__main__":
-    app = App()
-    testPhoto(app)
-
-"""
-"ACKY64ut147fmVuJ9rn_L38vK_-Xyf2m9fhbHShoXnTjtDrH1eBCR24hIhxYlkLF-65dMr4onkmIal6tqEmCTFs-nDBiJKFTgQ"
-
-"share link für album gesehen von SK"
-https://photos.app.goo.gl/K2mdVDXGXEvYJKrE6 expandiert zu
-https://photos.google.com/share/AF1QipO9fOXtyiIrUOodGo8k-WNXR5O5HByM2Jkdvz6LPT0Ndli0EZa_k930lw8kuv_PRg?pli=1&key=SmRLUmluOWs4aVJRcFotYTM5VkFjX25JRVBkb2R3
-
-"link gesehen von muh"
-https://photos.google.com/share/AF1QipO9fOXtyiIrUOodGo8k-WNXR5O5HByM2Jkdvz6LPT0Ndli0EZa_k930lw8kuv_PRg?key=SmRLUmluOWs4aVJRcFotYTM5VkFjX25JRVBkb2R3
-"""
+    app = App("Sitzbänke")
+    getShareToken(app)
