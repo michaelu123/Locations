@@ -12,15 +12,18 @@ from gsheets import Google
 # https://developers.google.com/photos/library/guides/access-media-items
 # https://stackoverflow.com/questions/50573196/access-google-photo-api-with-python-using-google-api-python-client
 
-
 class GPhoto(Google):
     def __init__(self, app):
         self.app = app
         self.baseJS = app.baseJS
-        creds = self.getCreds()
-        self.servicePH = build('photoslibrary', 'v1', credentials=creds)
+        self.getServicePH()
         self.album_name = self.baseJS.get("db_tabellenname")  # use also as album name
         self.getSharedAlbum()
+
+    # get service more often than necessary for fear of expiring credentials
+    def getServicePH(self):
+        creds = self.getCreds()
+        self.servicePH = build('photoslibrary', 'v1', credentials=creds)
 
     def getSharedAlbum(self):
         # Call the Photo v1 API
@@ -103,10 +106,6 @@ class GPhoto(Google):
     # Resumable uploads described in https://developers.google.com/photos/library/guides/resumable-uploads
     # but this uploads only one image at a time
     def upload_photos(self, photo_objs):
-        self.session = AuthorizedSession(self.getCreds())
-        self.session.headers["Content-type"] = "application/octet-stream"
-        self.session.headers["X-Goog-Upload-Content-Type"] = "image/jpeg"
-        self.session.headers["X-Goog-Upload-Protocol"] = "raw"
         for obj in photo_objs:
             try:
                 photo_file_path = obj["filepath"]
@@ -116,8 +115,12 @@ class GPhoto(Google):
                 raise RuntimeError("Could not read file '{0}' -- {1}".format(photo_file_path, err))
             basename = os.path.basename(photo_file_path)
             obj["basename"] = basename
+            self.session = AuthorizedSession(self.getCreds())
+            self.session.headers["Content-type"] = "application/octet-stream"
+            self.session.headers["X-Goog-Upload-Content-Type"] = "image/jpeg"
+            self.session.headers["X-Goog-Upload-Protocol"] = "raw"
             self.session.headers["X-Goog-Upload-File-Name"] = basename
-            upload_token = self.session.post('https://photoslibrary.googleapis.com/v1/uploads', photo_bytes)
+            upload_token = self.session.post('https://photoslibrary.googleapis.com/v1/uploads', photo_bytes, timeout=999999)
             if (upload_token.status_code == 200) and (upload_token.content):
                 obj["token"] = upload_token.content.decode()
 
@@ -135,6 +138,7 @@ class GPhoto(Google):
                 for obj in photo_objs
             ]
         }
+        self.getServicePH()
         resp = self.servicePH.mediaItems().batchCreate(body=create_body).execute()
         # print("batchCreate response: {}".format(resp))
         # {
@@ -189,6 +193,7 @@ class GPhoto(Google):
             raise RuntimeError("Could not add photos to library. Server Response -- {0}".format(resp))
 
     def getImage(self, id, w=0, h=0):
+        self.getServicePH()
         item = self.servicePH.mediaItems().get(mediaItemId=id).execute()
         # print("get", item)
         # {
@@ -233,6 +238,7 @@ class GPhoto(Google):
             raise RuntimeError("Could not write file '{0}' -- {1}".format(filename, err))
 
     def batchGetImages(self, ids, w=0, h=0):
+        self.getServicePH()
         resp = self.servicePH.mediaItems().batchGet(mediaItemIds=ids).execute()
         # print("batchGet", resp)
         # {
@@ -292,7 +298,6 @@ class GPhoto(Google):
         # }
 
         items = resp["mediaItemResults"]
-        self.session = AuthorizedSession(self.getCreds())
         for item in items:
             baseUrl = item["mediaItem"]["baseUrl"]
             filename = item["mediaItem"]["filename"]
@@ -300,6 +305,7 @@ class GPhoto(Google):
                 w = item["mediaItem"]["mediaMetadata"]["width"]
             if h == 0:
                 h = item["mediaItem"]["mediaMetadata"]["height"]
+            self.session = AuthorizedSession(self.getCreds())
             resp = self.session.get(baseUrl + f"=w{w}-h{h}")
             try:
                 with open(utils.getDataDir() + f"/images/{w}x{h}_" + filename, mode='wb') as photo_file:

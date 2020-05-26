@@ -3,7 +3,7 @@ import shutil
 import time
 
 from kivy import platform
-from kivy.clock import Clock
+from kivy.clock import Clock, mainthread
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 
@@ -46,13 +46,14 @@ class Kamera:
 
     def camera_callback(self, _):
         if (os.path.exists(self.filepath)):
-            Clock.schedule_once(self.change_image)  # call change_image in UI thread
+            self.change_image()
             return False
         else:
             self.app.msgDialog("Fehler", "Konnte das Bild nicht abspeichern!")
             return True
 
 
+    @mainthread
     def change_image(self, *args):
         self.app.daten.addImage(self.filename, self.filepath, self.lat, self.lon)
         self.app.show_daten(False)

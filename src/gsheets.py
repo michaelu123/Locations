@@ -93,10 +93,7 @@ class GSheet(Google):
         self.baseJS = app.baseJS
         self.stellen = self.baseJS.get("gps").get("nachkommastellen")
 
-        creds = self.getCreds()
-        serviceSH = build('sheets', 'v4', credentials=creds)
-        self.ssheet = serviceSH.spreadsheets()
-
+        self.getSSheet()
         self.spreadsheet_id = self.baseJS.get("spreadsheet_id")
         sheet_basename = self.baseJS.get("db_tabellenname")  # gleicher Name wie DB
         self.sheet_names = [sheet_basename + "_daten", sheet_basename + "_images"]
@@ -117,6 +114,12 @@ class GSheet(Google):
                 raise (e)
 
         self.checkColumns()
+
+    # get service more often than necessary for fear of expiring credentials
+    def getSSheet(self):
+        creds = self.getCreds()
+        serviceSH = build('sheets', 'v4', credentials=creds)
+        self.ssheet = serviceSH.spreadsheets()
 
     def checkSheets(self):
         sheet_props = self.ssheet.get(spreadsheetId=self.spreadsheet_id, fields="sheets.properties").execute()
@@ -178,6 +181,7 @@ class GSheet(Google):
         print("addValue", result)
 
     def appendValues(self, sheet_name, values):
+        self.getSSheet()
         body = {
             "majorDimension": "ROWS",
             "values": values
@@ -185,9 +189,10 @@ class GSheet(Google):
         result = self.ssheet.values().append(spreadsheetId=self.spreadsheet_id, range=sheet_name,
                                              valueInputOption="RAW",
                                              body=body).execute()
-        print("appendValue", result)
+        print("appendValue result:", result)
 
     def getValues(self, sheet_name, a1range=""):
+        self.getSSheet()
         result = self.ssheet.values().get(spreadsheetId=self.spreadsheet_id,
                                           range=sheet_name + a1range).execute().get('values', [])
         print("getValues", sheet_name, a1range, result[0:3])
@@ -203,6 +208,7 @@ class GSheet(Google):
         return range
 
     def batchget(self, ranges):
+        self.getSSheet()
         result = self.ssheet.values().batchGet(spreadsheetId=self.spreadsheet_id,
                                                ranges=ranges).execute().get('valueRanges', [])
         result = [r.get("values")[0] for r in result]
@@ -210,6 +216,7 @@ class GSheet(Google):
         return result
 
     def getValuesWithin(self, minlat, maxlat, minlon, maxlon):
+        self.getSSheet()
         minlat = str(round(minlat, self.stellen)).replace(".", ",")
         maxlat = str(round(maxlat, self.stellen)).replace(".", ",")
         minlon = str(round(minlon, self.stellen)).replace(".", ",")

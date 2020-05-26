@@ -3,9 +3,10 @@ import locale
 import os
 import os.path
 import time
+from concurrent.futures.thread import ThreadPoolExecutor
 
 import plyer
-from kivy.clock import Clock
+from kivy.clock import Clock, mainthread
 from kivy.core.window import Window
 from kivy.lang import Builder
 from kivy.properties import ObjectProperty
@@ -349,6 +350,10 @@ class Locations(MDApp):
         # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
         # print("cwd", os.getcwd())
         # utils.walk(".")
+
+        self.executor = ThreadPoolExecutor(max_workers = 1)
+        self.future = None
+
         self.setup(base)
         return self.root
 
@@ -368,20 +373,14 @@ class Locations(MDApp):
         self.root.sm.clear_widgets(sm_screens)
         sm_screens = None
 
-        print("1setup")
         self.message("Mit Google Sheets verbinden")
         self.gsheet = gsheets.GSheet(self)
-        print("2setup")
         userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
-        print("3setup", userInfo.get("name"))
         self.message("Mit Google Photos verbinden als " + userInfo["name"])
-        print("4setup")
         self.gphoto = gphotos.GPhoto(self)
-        print("5setup")
 
         self.karte = Karte(name="Karte")
         self.root.sm.add_widget(self.karte)
-        print("6setup")
 
         self.message("Lade Map Marker")
         self.mapview = self.karte.ids.mapview
@@ -462,6 +461,7 @@ class Locations(MDApp):
             self.add_marker(round(lat, self.stellen), round(lon, self.stellen))
             self.show_daten(False)
 
+    @mainthread
     def msgDialog(self, titel, text):
         if self.dialog is not None:
             self.dialog_dismiss()
@@ -502,8 +502,12 @@ class Locations(MDApp):
         savedImgs = [list(row) for row in newImgs if len(row[6]) > 60]
         photo_objs = [{"filepath": utils.getDataDir() + "/images/" + row[6],
                        "desc": row[6][0:row[6].index(".jpg")]} for row in unsavedImgs]
-        if len(photo_objs) > 0:
-            self.gphoto.upload_photos(photo_objs)
+        # if len(photo_objs) > 0:
+        #     self.gphoto.upload_photos(photo_objs)
+        pcnt = len(photo_objs)
+        for i, photo_obj in enumerate(photo_objs):
+            self.message(f"Speichere Bild {i} von {pcnt}")
+            self.gphoto.upload_photos([photo_obj])
         for i, row in enumerate(unsavedImgs):
             old_image_path = row[6]
             new_image_path = photo_objs[i]["id"]
@@ -517,7 +521,7 @@ class Locations(MDApp):
 
     def storeSheet(self):
         if self.checkAlias():
-            Clock.schedule_once(self.storeSheet2, 0)
+            self.future = self.executor.submit(self.storeSheet2)
 
     def storeSheet2(self, *args):
         laststored = self.getConfigValue("gespeichert")
@@ -706,7 +710,7 @@ class Locations(MDApp):
                                    buttons=[
                                        MDFlatButton(
                                            text="Ja", text_color=self.theme_cls.primary_color,
-                                           on_press=self.stop),
+                                           on_press=self.stopApp),
                                        MDFlatButton(
                                            text="Nein", text_color=self.theme_cls.primary_color,
                                            on_press=self.dialog_dismiss),
@@ -779,13 +783,15 @@ class Locations(MDApp):
         self.config.set("Locations", param, value)
         self.config.write()
 
-    def message(self, m):
-        self.m = m
-        toast(self.m, 1)
-        # Clock.schedule_once(self.message2, 0)
+    def stopApp(self, *args):
+        if self.future is not None and self.future.running():
+            self.msgDialog("Bitte warten", "Das Speichern ist noch nicht beendet!")
+            return
+        self.stop()
 
-    def message2(self, *args):
-        toast(self.m, 1)
+    @mainthread
+    def message(self, m):
+        toast(m)
 
 
 if __name__ == "__main__":
