@@ -521,6 +521,9 @@ class Locations(MDApp):
 
     def storeSheet(self):
         if self.checkAlias():
+            if self.future is not None and self.future.running:
+                self.msgDialog("Läuft noch", "Ein früherer Speichervorgang läuft noch!")
+                return
             self.future = self.executor.submit(self.storeSheet2)
 
     def storeSheet2(self, *args):
@@ -534,6 +537,7 @@ class Locations(MDApp):
         newvals[self.baseJS["db_tabellenname"] + "_images"] = newImgs
 
         recCnt = 0
+        self.message("Speichere Daten")
         for sheet_name in newvals.keys():
             vals = newvals[sheet_name]
             recCnt += len(vals)
