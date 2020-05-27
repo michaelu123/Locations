@@ -2,6 +2,7 @@ import os
 
 from google.auth.transport.requests import AuthorizedSession
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 import config
 import utils
@@ -194,29 +195,33 @@ class GPhoto(Google):
 
     def getImage(self, id, w=0, h=0):
         self.getServicePH()
-        item = self.servicePH.mediaItems().get(mediaItemId=id).execute()
-        # print("get", item)
-        # {
-        #     'id': 'ACKY64ut147fmVuJ9rn_L38vK_-Xyf2m9fhbHShoXnTjtDrH1eBCR24hIhxYlkLF-65dMr4onkmIal6tqEmCTFs-nDBiJKFTgQ',
-        #     'description': '108-0890',
-        #     'productUrl': 'https://photos.google.com/lr/photo/<id>',
-        #     'baseUrl': 'https://lh3.googleusercontent.com/lr/...',
-        #     'mimeType': 'image/jpeg',
-        #     'mediaMetadata':
-        #     {
-        #         'creationTime': '2002-12-29T12:19:35Z',
-        #         'width': '1600',
-        #         'height': '1200',
-        #         'photo': {
-        #             'cameraMake': 'Canon',
-        #             'cameraModel': 'Canon PowerShot A40',
-        #             'focalLength': 5.40625,
-        #             'apertureFNumber': 2.8,
-        #             'isoEquivalent': 161
-        #         }
-        #     },
-        #     'filename': '108-0890_IMG.jpg'
-        # }
+        try :
+            item = self.servicePH.mediaItems().get(mediaItemId=id).execute()
+            # print("get", item)
+            # {
+            #     'id': 'ACKY64ut147fmVuJ9rn_L38vK_-Xyf2m9fhbHShoXnTjtDrH1eBCR24hIhxYlkLF-65dMr4onkmIal6tqEmCTFs-nDBiJKFTgQ',
+            #     'description': '108-0890',
+            #     'productUrl': 'https://photos.google.com/lr/photo/<id>',
+            #     'baseUrl': 'https://lh3.googleusercontent.com/lr/...',
+            #     'mimeType': 'image/jpeg',
+            #     'mediaMetadata':
+            #     {
+            #         'creationTime': '2002-12-29T12:19:35Z',
+            #         'width': '1600',
+            #         'height': '1200',
+            #         'photo': {
+            #             'cameraMake': 'Canon',
+            #             'cameraModel': 'Canon PowerShot A40',
+            #             'focalLength': 5.40625,
+            #             'apertureFNumber': 2.8,
+            #             'isoEquivalent': 161
+            #         }
+            #     },
+            #     'filename': '108-0890_IMG.jpg'
+            # }
+        except HttpError as e:
+            utils.printEx("Kann Foto nicht laden", e)
+            return None
 
         baseUrl = item["baseUrl"]
         filename = item["filename"]

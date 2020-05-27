@@ -6,6 +6,7 @@ from kivy import platform
 from kivy.clock import Clock, mainthread
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
+from kivymd.uix.filemanager import MDFileManager
 
 import utils
 
@@ -13,8 +14,9 @@ class Kamera:
     def __init__(self, app, **kwargs):
         self.app = app
         self.stellen = app.baseJS.get("gps").get("nachkommastellen")
+        self.fileManager = None
+        self.path = "C:/"
         super().__init__(**kwargs)
-        self.toggle = True
 
     def do_capture(self, lat, lon):
         self.lat = lat
@@ -25,18 +27,17 @@ class Kamera:
         self.filepath = utils.getDataDir() + "/images/" + self.filename
 
         if platform != "android":
-            self.app.msgDialog("OS-Spezifisch", "Kamera ist nur auf Android verfügbar")
-            if self.toggle:
-                filename = "108-0890_IMG.jpg"
-                self.toggle = False
-            else:
-                filename = "108-0892_IMG.jpg"
-                self.toggle = True
-            shutil.copyfile("./images/" + filename, self.filepath)
-            self.app.daten.addImage(self.filename, self.filepath, lat, lon)
-            #self.app.root.sm.current = "Daten"
-            self.app.on_pause()
-            self.app.on_resume()
+            from plyer import filechooser
+            cwd = os.getcwd()
+            path = filechooser.open_file(title="Bitte ein Bild auswählen", path=self.path, multiple=False,
+                                         filters=[["Photos", "*.jpg", "*.jpeg"]], preview=True)
+            os.chdir(cwd)
+            if not path:
+                return
+            path = path[0]
+            self.path = os.path.dirname(path)
+            shutil.copyfile(path, self.filepath)
+            self.change_image()
             return
 
         try:
@@ -51,7 +52,6 @@ class Kamera:
         else:
             self.app.msgDialog("Fehler", "Konnte das Bild nicht abspeichern!")
             return True
-
 
     @mainthread
     def change_image(self, *args):

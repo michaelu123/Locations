@@ -28,6 +28,8 @@ def getDataDir():
     if os.name == "posix":
         # Context.getExternalFilesDir()
         return "/storage/emulated/0/Android/data/de.adfc-muenchen.abstellanlagen/files"
+    if hasattr(sys, "_MEIPASS"):  # i.e. if running as exe produced by pyinstaller
+        return sys._MEIPASS
     return "."
 
 def acquire_permissions(permissions, timeout=30):

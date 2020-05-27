@@ -189,7 +189,9 @@ class Daten(Form):
         imlist = []
         for tuple in img_tuples:  # (image_path, None)  or (mediaId, image_url)
             if tuple[1]:
-                imlist.append((self.app.gphoto.getImage(tuple[0], w=200, h=200), tuple[0]))
+                img = self.app.gphoto.getImage(tuple[0], w=200, h=200)
+                if img is not None:
+                    imlist.append((img, tuple[0]))
             else:
                 imlist.append((utils.getDataDir() + "/images/" + tuple[0], None))
         # photo_image must be the last or the only one

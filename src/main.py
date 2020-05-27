@@ -297,8 +297,8 @@ class Images(Screen):
             else:
                 maxdim = self.app.getConfigValue("maxdim", 1024)
                 src = self.app.gphoto.getImage(args[0].mediaId, w=maxdim, h=maxdim)
-        else:
-            src = args[0]
+        else: # tuple(path, url)
+            src = args[0][0]
         app.single.ids.im.source = src
         app.root.sm.current = "Single"
 
@@ -506,7 +506,7 @@ class Locations(MDApp):
         #     self.gphoto.upload_photos(photo_objs)
         pcnt = len(photo_objs)
         for i, photo_obj in enumerate(photo_objs):
-            self.message(f"Speichere Bild {i} von {pcnt}")
+            self.message(f"Speichere Bild {i+1} von {pcnt}")
             self.gphoto.upload_photos([photo_obj])
         for i, row in enumerate(unsavedImgs):
             old_image_path = row[6]
@@ -521,7 +521,7 @@ class Locations(MDApp):
 
     def storeSheet(self):
         if self.checkAlias():
-            if self.future is not None and self.future.running:
+            if self.future is not None and not self.future.done():
                 self.msgDialog("Läuft noch", "Ein früherer Speichervorgang läuft noch!")
                 return
             self.future = self.executor.submit(self.storeSheet2)
@@ -788,7 +788,7 @@ class Locations(MDApp):
         self.config.write()
 
     def stopApp(self, *args):
-        if self.future is not None and self.future.running():
+        if self.future is not None and not self.future.done():
             self.msgDialog("Bitte warten", "Das Speichern ist noch nicht beendet!")
             return
         self.stop()
