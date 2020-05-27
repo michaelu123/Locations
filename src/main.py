@@ -662,7 +662,7 @@ class Locations(MDApp):
             src = col + "_plus48.png"
         else:
             src = col + "48.png"
-        mm = MyMapMarker(lat=lat, lon=lon, source="icons/" + src)
+        mm = MyMapMarker(lat=lat, lon=lon, source=utils.getDataDir() + "/icons/" + src)
         return mm
 
     def add_marker(self, lat, lon):
