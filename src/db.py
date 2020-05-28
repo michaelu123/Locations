@@ -417,6 +417,15 @@ class DB():
             result[tabellenname] = r.fetchall()
         return result
 
+
+    def deleteAll(self):
+        conn = self.getConn()
+        with conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM " + self.tabellenname + "_daten")
+            c.execute("DELETE FROM " + self.tabellenname + "_zusatz")
+            c.execute("DELETE FROM " + self.tabellenname + "_images")
+
 # import config
 # class App:
 #     def __init__(self):

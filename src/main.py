@@ -23,6 +23,7 @@ from kivymd.toast import toast
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import OneLineAvatarIconListItem
+from kivymd.uix.spinner import MDSpinner
 
 import bugs
 import config
@@ -350,10 +351,8 @@ class Locations(MDApp):
         # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
         # print("cwd", os.getcwd())
         # utils.walk(".")
-
         self.executor = ThreadPoolExecutor(max_workers = 1)
         self.future = None
-
         self.setup(base)
         return self.root
 
@@ -365,24 +364,16 @@ class Locations(MDApp):
         self.store.put("base", base=self.selected_base)
         self.baseJS = self.baseConfig.getBase(self.selected_base)
         self.stellen = self.baseJS.get("gps").get("nachkommastellen")
-        self.dbinst = db.DB.instance()
-        self.dbinst.initDB(self)
 
         # self.root.sm.clear_widgets() does not work !?
         sm_screens = self.root.sm.screens[:]
         self.root.sm.clear_widgets(sm_screens)
         sm_screens = None
-
-        self.message("Mit Google Sheets verbinden")
-        self.gsheet = gsheets.GSheet(self)
-        userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
-        self.message("Mit Google Photos verbinden als " + userInfo["name"])
-        self.gphoto = gphotos.GPhoto(self)
+        self.spinner = MDSpinner(size=(50, 50), size_hint=(None, None), pos_hint={"center_x": .5, "center_y": .5})
 
         self.karte = Karte(name="Karte")
         self.root.sm.add_widget(self.karte)
 
-        self.message("Lade Map Marker")
         self.mapview = self.karte.ids.mapview
         self.mapview.map_source = "osm-de"
         self.mapview.map_source.min_zoom = self.baseConfig.getMinZoom(self.selected_base)
@@ -398,19 +389,37 @@ class Locations(MDApp):
         self.single = Single(self, name="Single")
         self.root.sm.add_widget(self.single)
 
-        self.daten = Daten(self, name="Daten")
-        self.root.sm.add_widget(self.daten)
-        self.zusatz = Zusatz(self, name="Zusatz")
-        self.root.sm.add_widget(self.zusatz)
-
         self.kamera = Kamera(self)
         self.account = Account(name="Account")
         self.root.sm.add_widget(self.account)
 
+        self.daten = Daten(self, name="Daten")
+        self.root.sm.add_widget(self.daten)
+
+        self.zusatz = Zusatz(self, name="Zusatz")
+        self.root.sm.add_widget(self.zusatz)
+
         self.pushScreen("Karte")
+
+        if self.future is not None:
+            self.future.result()
+        self.future = self.executor.submit(self.setup2, base)
+
+    def setup2(self, base):
+        self.dbinst = db.DB.instance()
+        self.dbinst.initDB(self)
+
+        self.message("Mit Google Sheets verbinden")
+        self.gsheet = gsheets.GSheet(self)
+        userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
+        self.message("Mit Google Photos verbinden als " + userInfo["name"])
+        self.gphoto = gphotos.GPhoto(self)
+
         self.loadSheet(False)
 
     def show_markers(self, *args):
+        self.message("Lade Map Marker")
+        self.spinnerStart()
         clat = self.mapview.centerlat
         clon = self.mapview.centerlon
         minlat = clat - 0.013
@@ -419,20 +428,27 @@ class Locations(MDApp):
         maxlon = clon + 0.013
 
         for k in list(self.markerMap.keys()):
-            lat, lon = k.split(":")
-            lat = float(lat)
-            lon = float(lon)
-            if not (minlat < lat < maxlat and minlon < lon < maxlon):
-                markerOld = self.markerMap.get(k)
-                self.mapview.remove_marker(markerOld)
-                del self.markerMap[k]
+            # lat, lon = k.split(":")
+            # lat = float(lat)
+            # lon = float(lon)
+            # if not (minlat < lat < maxlat and minlon < lon < maxlon):
+            #     markerOld = self.markerMap.get(k)
+            #     self.mapview.remove_marker(markerOld)
+            #     del self.markerMap[k]
+            markerOld = self.markerMap.get(k)
+            self.mapview.remove_marker(markerOld)
+            del self.markerMap[k]
 
-        if True or plyer.wifi.is_enabled():  # ??
-            sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
-            self.dbinst.fillWith(sheetValues)
+        sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
+        self.dbinst.fillWith(sheetValues)
         markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
+        self.show_markers2(markers)
+
+    @mainthread
+    def show_markers2(self, markers):
         for marker in markers:
             self.add_marker(marker[0], marker[1])
+        self.spinnerStop()
 
     def show_account(self, *args):
         self.pushScreen("Account")
@@ -479,6 +495,8 @@ class Locations(MDApp):
         self.dialog = None
 
     def loadSheet(self, newCenter):
+        if newCenter and self.future.running():
+            return
         if newCenter:
             lat = self.mapview.lat
             lon = self.mapview.lon
@@ -492,7 +510,10 @@ class Locations(MDApp):
                 lat = gps.get("center_lat")
                 lon = gps.get("center_lon")
         self.center_on(lat, lon)
-        Clock.schedule_once(self.show_markers, 0)
+        if newCenter: # called from UI
+            self.future = self.executor.submit(self.show_markers)
+        else:
+            self.show_markers()
 
     def storeImages(self, newImgs):
         # tuples to list, skip if image_path=row[6] is already a mediaId
@@ -521,9 +542,10 @@ class Locations(MDApp):
 
     def storeSheet(self):
         if self.checkAlias():
-            if self.future is not None and not self.future.done():
+            if self.future.running():
                 self.msgDialog("Läuft noch", "Ein früherer Speichervorgang läuft noch!")
                 return
+            self.spinnerStart()
             self.future = self.executor.submit(self.storeSheet2)
 
     def storeSheet2(self, *args):
@@ -540,14 +562,16 @@ class Locations(MDApp):
         self.message("Speichere Daten")
         for sheet_name in newvals.keys():
             vals = newvals[sheet_name]
-            recCnt += len(vals)
-            self.gsheet.appendValues(sheet_name, vals)
+            if len(vals) > 0:
+                recCnt += len(vals)
+                self.gsheet.appendValues(sheet_name, vals)
         self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
         for obj in photo_objs:
             os.remove(obj["filepath"])
         self.msgDialog("Gespeichert",
                        f"Es wurden {imgCnt} Fotos und {recCnt} neue oder geänderte Datensätze gespeichert")
-        # ?? self.dbinst.deleteNewOrChanged()
+        self.dbinst.deleteAll()
+        self.show_markers()
 
     def center_on(self, lat, lon):
         self.mapview.set_zoom_at(17, 0, 0, 2.0)
@@ -797,6 +821,16 @@ class Locations(MDApp):
     def message(self, m):
         toast(m)
 
+    def spinnerStart(self):
+        self.spinner.active = True
+        if self.spinner.parent is not None:
+            self.spinner.parent.remove_widget(self.spinner)
+        self.root.sm.current_screen.add_widget(self.spinner)
+
+    def spinnerStop(self):
+        self.spinner.active = False
+        if self.spinner.parent is not None:
+            self.spinner.parent.remove_widget(self.spinner)
 
 if __name__ == "__main__":
     # nc = True
