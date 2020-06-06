@@ -348,11 +348,21 @@ class Locations(MDApp):
         except:
             base = self.baseConfig.getNames()[0]
         print("base", base)
+        # print("----------- /data/user/0/de.adfcmuenchen.abstellanlagen")
         # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
-        # print("cwd", os.getcwd())
+        # print("----------- cwd", os.getcwd())
         # utils.walk(".")
+        # print("------------getDataDir", utils.getDataDir())
+        # utils.walk(utils.getDataDir())
+        # print("------------getExternalFilesDir", utils.getExternalFilesDir())
+        # utils.walk(utils.getExternalFilesDir())
         self.executor = ThreadPoolExecutor(max_workers = 1)
         self.future = None
+
+        laststored = self.getConfigValue("gespeichert")
+        if not laststored:
+            self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
+
         self.setup(base)
         return self.root
 
@@ -369,7 +379,7 @@ class Locations(MDApp):
         sm_screens = self.root.sm.screens[:]
         self.root.sm.clear_widgets(sm_screens)
         sm_screens = None
-        self.spinner = MDSpinner(size=(50, 50), size_hint=(None, None), pos_hint={"center_x": .5, "center_y": .5})
+        self.spinner = MDSpinner(size=(100, 100), size_hint=(None, None), pos_hint={"center_x": .5, "center_y": .5})
 
         self.karte = Karte(name="Karte")
         self.root.sm.add_widget(self.karte)
@@ -380,8 +390,8 @@ class Locations(MDApp):
         self.mapview.map_source.max_zoom = 19
         self.mapview.map_source.bounds = self.baseConfig.getGPSArea(self.selected_base)
         # Hack, trying to fix random zoom bug
-        self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
-        self.mapview._scatter.scale_max: 2.0  # MUH was 3!?
+        #self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
+        #self.mapview._scatter.scale_max: 2.0  # MUH was 3!?
 
         self.images = Images(self, name="Images")
         self.root.sm.add_widget(self.images)
@@ -506,6 +516,8 @@ class Locations(MDApp):
                 lat = self.store.get("latlon")["lat"]
                 lon = self.store.get("latlon")["lon"]
             except:
+                lat = lon = 0
+            if lat == 0 or lon == 0:
                 gps = self.baseJS.get("gps")
                 lat = gps.get("center_lat")
                 lon = gps.get("center_lon")
@@ -686,7 +698,7 @@ class Locations(MDApp):
             src = col + "_plus48.png"
         else:
             src = col + "48.png"
-        mm = MyMapMarker(lat=lat, lon=lon, source=utils.getDataDir() + "/icons/" + src)
+        mm = MyMapMarker(lat=lat, lon=lon, source=utils.getCurDir() + "/icons/" + src)
         return mm
 
     def add_marker(self, lat, lon):

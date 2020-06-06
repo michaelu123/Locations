@@ -173,7 +173,7 @@ class Daten(Form):
         self.protected = self.app.baseJS.get("protected", False)
         self.fields = {}
 
-        self.image_list = [("./images/" + utils.camera_icon, None)]
+        self.image_list = [(utils.getCurDir() + "/images/" + utils.camera_icon, None)]
         self.dbinst = db.DB.instance()
         super().__init__(**kwargs)
         if self.app.baseJS.get("zusatz", None) is None:
@@ -195,7 +195,7 @@ class Daten(Form):
             else:
                 imlist.append((utils.getDataDir() + "/images/" + tuple[0], None))
         # photo_image must be the last or the only one
-        imlist.append(("./images/" + utils.camera_icon, None))
+        imlist.append((utils.getCurDir() + "/images/" + utils.camera_icon, None))
 
         imlist2 = []
         for p in imlist:

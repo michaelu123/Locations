@@ -33,6 +33,7 @@ class Kamera:
                                          filters=[["Photos", "*.jpg", "*.jpeg"]], preview=True)
             os.chdir(cwd)
             if not path:
+                self.app.show_daten(False)
                 return
             path = path[0]
             self.path = os.path.dirname(path)
