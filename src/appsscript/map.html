@@ -34,20 +34,29 @@
         for (x in markers) {
           var m = markers[x]
           console.log("marker", m);
+          var mk = null;
           if (m.imgs.length > 0) {
-            var mk = new google.maps.Marker({position: m, map: map, label: '+'});
-            // https://www.revilodesign.de/blog/google-maps-api/google-maps-api-karte-mit-mehreren-marker-und-infowindow/
-            mk.addListener('click', (function(m, mk) {
-              return function() {
-                  console.log("showInfo", "m", m, "mk", mk);
-                  var contentString = '<p> Image: <a href="' + m.imgs[0] + '">link</a></p>';
-                  infoWindow.setContent(contentString);
-                  infoWindow.open(map, mk);
-              }
-            })(m, mk));
+            mk = new google.maps.Marker({position: m, map: map, label: '+'});
           } else {
-            var mk = new google.maps.Marker({position: m, map: map});
+            mk = new google.maps.Marker({position: m, map: map});
           }
+          // https://www.revilodesign.de/blog/google-maps-api/google-maps-api-karte-mit-mehreren-marker-und-infowindow/
+          mk.addListener('click', (function(m, mk) {
+            return function() {
+              console.log("showInfo", "m", m, "mk", mk);
+              var contentString = '<p>';
+              for (dh in m.data) {
+                contentString = contentString.concat(dh, ': ', m.data[dh], '<br>');
+              }
+              if (m.imgs.length > 0) {
+                contentString = contentString.concat('Image: <a href="', m.imgs[0], '" target="_blank">link</a></p>');
+              } else {
+                contentString = contentString.concat('</p>');
+              }
+              infoWindow.setContent(contentString);
+              infoWindow.open(map, mk);
+            }
+          })(m, mk));
         }
         console.log("4in");
         var munich2 = {lat: 48.136, lng: 11.574};
@@ -62,7 +71,7 @@
     * The callback parameter executes the initMap() function
     -->
     <script async defer
-    src="https://maps.googleapis.com/maps/api/js?key=xxx&callback=initMap">
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAJo6zMlDH1ylctGyN_Dp0X6C7u-U2oAzs&callback=initMap">
     </script>
 
   </body>

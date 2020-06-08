@@ -70,6 +70,18 @@ function getMarkers() {
     if (dlat == "" || dlon == "") {
       continue
     }
+
+    var data = {}
+    for (var dhdr in dhdrMap) {
+      var dX = dhdrMap[dhdr]
+      if (dX <= dlonRoundX) {
+        continue;
+      }
+      if (drow[dX] != "") {
+        data[dhdr] = drow[dX];
+      }
+    }
+
     var images = []
     while (irowX < ilen) {
       var irow = ivalues[irowX];
@@ -94,7 +106,7 @@ function getMarkers() {
       irowX += 1;
       continue;
     }
-    var m = {lat: dlat, lng:dlon, imgs: images};
+    var m = {lat: dlat, lng:dlon, data: data, imgs: images};
     Logger.log("m", m);
     markers.push(m);
   }
