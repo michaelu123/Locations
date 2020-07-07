@@ -61,14 +61,16 @@ class DB():
         self.floatcols["daten"] = floatcols
 
         fields = ["creator TEXT", "created TEXT", "lat REAL", "lon REAL", "lat_round STRING", "lon_round STRING",
-                  "image_path STRING", "image_url STRING"]
+                  "image_path STRING", "image_url STRING",
+                  "PRIMARY KEY (image_path) ON CONFLICT REPLACE"]
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_images (" + ", ".join(fields) + ")"
         stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_images ON " + self.tabellenname + "_images (lat_round, lon_round)";
         with conn:
             c = conn.cursor()
             c.execute(stmt1)
             c.execute(stmt2)
-        self.colnames["images"] = ["creator", "created", "lat", "lon", "lat_round", "lon_round", "image_path", "image_url"]
+        self.colnames["images"] = ["creator", "created", "lat", "lon", "lat_round", "lon_round", "image_path",
+                                   "image_url"]
         self.floatcols["images"] = [2, 3, 4, 5]
 
         if self.baseJS.get("zusatz", None) is None:
@@ -84,6 +86,7 @@ class DB():
             if type == "REAL":
                 floatcols.append(i)
             fields.append(name + " " + type)
+        fields.append("UNIQUE(creator, created, modified, lat_round, lon_round) ON CONFLICT REPLACE")
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_zusatz (" + ", ".join(fields) + ")"
         stmt2 = "CREATE INDEX IF NOT EXISTS latlonrnd_zusatz ON " + self.tabellenname + "_zusatz (lat_round, lon_round)";
 
@@ -151,7 +154,7 @@ class DB():
                     vals[name] = text
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(colnames) + ")", vals)
-            self.app.add_marker(lat, lon)
+            self.app.add_marker(lat, lon)  # TODO weg
         except Exception as e:
             utils.printEx("update_daten:", e)
 
@@ -241,7 +244,7 @@ class DB():
                     colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(colnames) + ")", vals)
                     rowid = c.lastrowid
-            self.app.add_marker(lat, lon)
+            self.app.add_marker(lat, lon)  # TODO weg
             return rowid
         except Exception as e:
             utils.printEx("update_zusatz:", e)
@@ -270,7 +273,7 @@ class DB():
                         "lat_round": lat_round, "lon_round": lon_round, "image_path": filename, "image_url": None}
                 colnames = [":" + k for k in vals.keys()]
                 c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(colnames) + ")", vals)
-            self.app.add_marker(lat, lon)
+            self.app.add_marker(lat, lon)  # TODO weg
         except Exception as e:
             utils.printEx("insert_image:", e)
 
@@ -281,10 +284,9 @@ class DB():
                 c = conn.cursor()
                 c.execute("UPDATE " + self.tabellenname + "_images set image_path = ?, image_url = ? where " +
                           "lat_round=? and lon_round=? and image_path=?",
-                               (new_image_path, new_image_url, lat_round, lon_round, old_image_path))
+                          (new_image_path, new_image_url, lat_round, lon_round, old_image_path))
         except Exception as e:
             utils.printEx("insert_image:", e)
-
 
     def delete_images(self, lat, lon, image_path):
         lat_round = str(round(lat, self.stellen))
@@ -380,7 +382,7 @@ class DB():
             nulls = [None for i in range(nrcols)]
             # spreadsheet returns not full rows, and floats with a "," instead of a "."
             for row in vals:
-                for i,v in enumerate(row):
+                for i, v in enumerate(row):
                     if v == "":
                         row[i] = None
                 l = len(row)
@@ -416,7 +418,6 @@ class DB():
                           (self.aliasname, since[0:4] + "%", since))
             result[tabellenname] = r.fetchall()
         return result
-
 
     def deleteAll(self):
         conn = self.getConn()

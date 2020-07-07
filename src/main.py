@@ -157,6 +157,7 @@ Builder.load_string(
             AsyncImage:
                 id: im
                 size: app.root.sm.size
+                on_touch_down: app.xxx(im)
                 canvas.before:
                     Color:
                         rgba: 0, 1, 0, .2
@@ -315,6 +316,20 @@ class ItemConfirm(OneLineAvatarIconListItem):
                 check.active = False
 
 
+class Spinner(MDSpinner):
+    def __init__(self):
+        super().__init__(size=(100, 100), size_hint=(None, None), pos_hint={"center_x": .5, "center_y": .5})
+
+    def __enter__(self):
+        self.active = True
+        app.root.sm.current_screen.add_widget(self)
+        pass
+
+    def __exit__(self, *args, **kwargs):
+        self.active = False
+        self.parent.remove_widget(self)
+
+
 class Locations(MDApp):
     def build(self):
         if platform == 'android':
@@ -348,8 +363,8 @@ class Locations(MDApp):
         except:
             base = self.baseConfig.getNames()[0]
         print("base", base)
-        # print("----------- /data/user/0/de.adfcmuenchen.abstellanlagen")
-        # utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
+        print("----------- /data/user/0/de.adfcmuenchen.abstellanlagen")
+        utils.walk("/data/user/0/de.adfcmuenchen.abstellanlagen")
         # print("----------- cwd", os.getcwd())
         # utils.walk(".")
         # print("------------getDataDir", utils.getDataDir())
@@ -379,7 +394,6 @@ class Locations(MDApp):
         sm_screens = self.root.sm.screens[:]
         self.root.sm.clear_widgets(sm_screens)
         sm_screens = None
-        self.spinner = MDSpinner(size=(100, 100), size_hint=(None, None), pos_hint={"center_x": .5, "center_y": .5})
 
         self.karte = Karte(name="Karte")
         self.root.sm.add_widget(self.karte)
@@ -415,50 +429,63 @@ class Locations(MDApp):
             self.future.result()
         self.future = self.executor.submit(self.setup2, base)
 
-    def setup2(self, base):
-        self.dbinst = db.DB.instance()
-        self.dbinst.initDB(self)
 
-        self.message("Mit Google Sheets verbinden")
-        self.gsheet = gsheets.GSheet(self)
-        userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
-        self.message("Mit Google Photos verbinden als " + userInfo["name"])
-        self.gphoto = gphotos.GPhoto(self)
+    def setup2(self, base):
+        try:
+            self.dbinst = db.DB.instance()
+            self.dbinst.initDB(self)
+
+            self.message("Mit Google Sheets verbinden")
+            self.gsheet = gsheets.GSheet(self)
+        except Exception as e:
+            self.message("Kann Google Sheets nicht erreichen:" + str(e))
+            raise(e)
+
+        try:
+            userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
+            self.message("Mit Google Photos verbinden als " + userInfo["name"])
+            self.gphoto = gphotos.GPhoto(self)
+        except Exception as e:
+            self.message("Kann Google Photos nicht erreichen:" + str(e))
+            raise(e)
 
         self.loadSheet(False)
 
     def show_markers(self, *args):
         self.message("Lade Map Marker")
-        self.spinnerStart()
-        clat = self.mapview.centerlat
-        clon = self.mapview.centerlon
-        minlat = clat - 0.013
-        maxlat = clat + 0.013
-        minlon = clon - 0.013
-        maxlon = clon + 0.013
+        with Spinner():
+            clat = self.mapview.centerlat
+            clon = self.mapview.centerlon
+            minlat = clat - 0.013
+            maxlat = clat + 0.013
+            minlon = clon - 0.013
+            maxlon = clon + 0.013
 
-        for k in list(self.markerMap.keys()):
-            # lat, lon = k.split(":")
-            # lat = float(lat)
-            # lon = float(lon)
-            # if not (minlat < lat < maxlat and minlon < lon < maxlon):
-            #     markerOld = self.markerMap.get(k)
-            #     self.mapview.remove_marker(markerOld)
-            #     del self.markerMap[k]
-            markerOld = self.markerMap.get(k)
-            self.mapview.remove_marker(markerOld)
-            del self.markerMap[k]
+            for k in list(self.markerMap.keys()):
+                # lat, lon = k.split(":")
+                # lat = float(lat)
+                # lon = float(lon)
+                # if not (minlat < lat < maxlat and minlon < lon < maxlon):
+                #     markerOld = self.markerMap.get(k)
+                #     self.mapview.remove_marker(markerOld)
+                #     del self.markerMap[k]
+                markerOld = self.markerMap.get(k)
+                self.mapview.remove_marker(markerOld)
+                del self.markerMap[k]
 
-        sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
-        self.dbinst.fillWith(sheetValues)
-        markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
-        self.show_markers2(markers)
+            try:
+                sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
+                self.dbinst.fillWith(sheetValues)
+            except Exception as e:
+                self.message("Konnte MapMarker nicht von Google Sheets laden: " + str(e))
+                raise(e)
+            markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
+            self.show_markers2(markers)
 
     @mainthread
     def show_markers2(self, markers):
         for marker in markers:
             self.add_marker(marker[0], marker[1])
-        self.spinnerStop()
 
     def show_account(self, *args):
         self.pushScreen("Account")
@@ -557,32 +584,36 @@ class Locations(MDApp):
             if self.future.running():
                 self.msgDialog("Läuft noch", "Ein früherer Speichervorgang läuft noch!")
                 return
-            self.spinnerStart()
             self.future = self.executor.submit(self.storeSheet2)
 
     def storeSheet2(self, *args):
-        laststored = self.getConfigValue("gespeichert")
-        newvals = self.dbinst.getNewOrChanged(laststored)
+        with Spinner():
+            try:
+                laststored = self.getConfigValue("gespeichert")
+                newvals = self.dbinst.getNewOrChanged(laststored)
 
-        # special case images, store them first in gphotos
-        newImgs = newvals[self.baseJS["db_tabellenname"] + "_images"]
-        newImgs, photo_objs = self.storeImages(newImgs)
-        imgCnt = len(newImgs)
-        newvals[self.baseJS["db_tabellenname"] + "_images"] = newImgs
+                # special case images, store them first in gphotos
+                newImgs = newvals[self.baseJS["db_tabellenname"] + "_images"]
+                newImgs, photo_objs = self.storeImages(newImgs)
+                imgCnt = len(newImgs)
+                newvals[self.baseJS["db_tabellenname"] + "_images"] = newImgs
 
-        recCnt = 0
-        self.message("Speichere Daten")
-        for sheet_name in newvals.keys():
-            vals = newvals[sheet_name]
-            if len(vals) > 0:
-                recCnt += len(vals)
-                self.gsheet.appendValues(sheet_name, vals)
-        self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
-        for obj in photo_objs:
-            os.remove(obj["filepath"])
-        self.msgDialog("Gespeichert",
-                       f"Es wurden {imgCnt} Fotos und {recCnt} neue oder geänderte Datensätze gespeichert")
-        self.dbinst.deleteAll()
+                recCnt = 0
+                self.message("Speichere Daten")
+                for sheet_name in newvals.keys():
+                    vals = newvals[sheet_name]
+                    if len(vals) > 0:
+                        recCnt += len(vals)
+                        self.gsheet.appendValues(sheet_name, vals)
+                self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
+                for obj in photo_objs:
+                    os.remove(obj["filepath"])
+                self.msgDialog("Gespeichert",
+                               f"Es wurden {imgCnt} Fotos und {recCnt} neue oder geänderte Datensätze gespeichert")
+                self.dbinst.deleteAll()
+            except Exception as e:
+                self.message("Konnte nicht in Google Drive oder Photos speichern:" + str(e))
+                raise(e)
         self.show_markers()
 
     def center_on(self, lat, lon):
@@ -831,18 +862,10 @@ class Locations(MDApp):
 
     @mainthread
     def message(self, m):
-        toast(m)
+        toast(m, duration=5)
 
-    def spinnerStart(self):
-        self.spinner.active = True
-        if self.spinner.parent is not None:
-            self.spinner.parent.remove_widget(self.spinner)
-        self.root.sm.current_screen.add_widget(self.spinner)
-
-    def spinnerStop(self):
-        self.spinner.active = False
-        if self.spinner.parent is not None:
-            self.spinner.parent.remove_widget(self.spinner)
+    def xxx(self, *args, **kwargs):
+        pass
 
 if __name__ == "__main__":
     # nc = True

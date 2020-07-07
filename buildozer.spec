@@ -41,7 +41,7 @@ version = 0.1
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
 requirements = python3,kivy,kivymd,openpyxl,sqlite3,jdcal,et_xmlfile,plyer,requests,mapview,httplib2,cachetools,\
-    pyasn1,pyasn1_modules,rsa,requests_oauthlib,oauthlib,uritemplate,pillow,\
+    pyasn1,pyasn1_modules,rsa,requests_oauthlib,oauthlib,uritemplate,pillow,urllib3,chardet,idna,\
     google-api-python-client,google-auth-httplib2,google-auth-oauthlib,google-api-core,google-auth,googleapis-common-protos
 
 # (str) Custom source folders for requirements

@@ -142,7 +142,7 @@ function geojson() {
       "properties": {},
       "geometry": {
         "type": "Point",
-        "coordinates": [row[latX], row[lonX]]
+        "coordinates": [row[lonX], row[latX]]
       }
     }
     if (row[ortX]) loc.properties["ort"] = row[ortX]

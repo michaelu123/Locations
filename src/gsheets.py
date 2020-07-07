@@ -76,6 +76,7 @@ class Google:
                 return user_info
         except Exception as e:
             utils.printEx('cannot get user info', e)
+            raise(e)
         return None
         # {
         #     'id': '101083883722235859400',
