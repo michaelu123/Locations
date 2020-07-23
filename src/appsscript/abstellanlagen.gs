@@ -23,7 +23,7 @@ function combine() {
   let dlen = dvalues.length
   // save row nr in last column
   let todel = []
-  for (const r = 0; r < dlen; r++) {
+  for (let r = 0; r < dlen; r++) {
     dvalues[r][maxCol] = r
   }
   dvalues.sort(function(a,b) {
@@ -73,7 +73,7 @@ function merge(sheet, dvalues, maxCol, row1X, row2X) {
   let row1 = dvalues[row1X]
   let row2 = dvalues[row2X]
   let changed = false
-  for (const colx = 0; colx < maxCol; colx++) {
+  for (let colx = 0; colx < maxCol; colx++) {
     if (row2[colx] != null && row2[colx] != "") {
       row1[colx] = row2[colx]
       changed = true

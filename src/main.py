@@ -19,7 +19,7 @@ from kivy.uix.widget import Widget
 from kivy.utils import platform
 from kivy_garden.mapview import MapMarker
 from kivymd.app import MDApp
-from kivymd.toast import toast
+from kivymd.toast.kivytoast.kivytoast import Toast
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.list import OneLineAvatarIconListItem
@@ -157,7 +157,6 @@ Builder.load_string(
             AsyncImage:
                 id: im
                 size: app.root.sm.size
-                on_touch_down: app.xxx(im)
                 canvas.before:
                     Color:
                         rgba: 0, 1, 0, .2
@@ -276,7 +275,13 @@ class Images(Screen):
             app.do_capture()
             return
         elif l == 1:
-            self.show_single_image(copy_list[0])
+            t = copy_list[0]
+            if t[1] is None:
+                self.show_single_image(t[0])
+            else:
+                maxdim = self.app.getConfigValue("maxdim", 1024)
+                im = self.app.gphoto.getImage(t[1], w=maxdim, h=maxdim)
+                self.show_single_image(im)
             return
         self.bl.clear_widgets()
         for i, cp in enumerate(copy_list):
@@ -299,8 +304,8 @@ class Images(Screen):
             else:
                 maxdim = self.app.getConfigValue("maxdim", 1024)
                 src = self.app.gphoto.getImage(args[0].mediaId, w=maxdim, h=maxdim)
-        else: # tuple(path, url)
-            src = args[0][0]
+        else: # src
+            src = args[0]
         app.single.ids.im.source = src
         app.root.sm.current = "Single"
 
@@ -451,15 +456,15 @@ class Locations(MDApp):
 
         self.loadSheet(False)
 
-    def show_markers(self, *args):
-        self.message("Lade Map Marker")
+    def show_markers(self, fromSheets, *args):
         with Spinner():
             clat = self.mapview.centerlat
             clon = self.mapview.centerlon
-            minlat = clat - 0.013
-            maxlat = clat + 0.013
-            minlon = clon - 0.013
-            maxlon = clon + 0.013
+            # roughly a square on the map
+            minlat = clat - 0.005
+            maxlat = clat + 0.005
+            minlon = clon - 0.009
+            maxlon = clon + 0.009
 
             for k in list(self.markerMap.keys()):
                 # lat, lon = k.split(":")
@@ -473,12 +478,15 @@ class Locations(MDApp):
                 self.mapview.remove_marker(markerOld)
                 del self.markerMap[k]
 
-            try:
-                sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
-                self.dbinst.fillWith(sheetValues)
-            except Exception as e:
-                self.message("Konnte MapMarker nicht von Google Sheets laden: " + str(e))
-                raise(e)
+            if fromSheets:
+                self.message("Lade Daten von Google Sheets")
+                try:
+                    sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
+                    self.dbinst.fillWith(sheetValues)
+                except Exception as e:
+                    self.message("Konnte Daten nicht von Google Sheets laden: " + str(e))
+                    raise(e)
+            self.message("Lade Map Marker")
             markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
             self.show_markers2(markers)
 
@@ -550,9 +558,9 @@ class Locations(MDApp):
                 lon = gps.get("center_lon")
         self.center_on(lat, lon)
         if newCenter: # called from UI
-            self.future = self.executor.submit(self.show_markers)
+            self.future = self.executor.submit(self.show_markers, True)
         else:
-            self.show_markers()
+            self.show_markers(False)
 
     def storeImages(self, newImgs):
         # tuples to list, skip if image_path=row[6] is already a mediaId
@@ -614,7 +622,7 @@ class Locations(MDApp):
             except Exception as e:
                 self.message("Konnte nicht in Google Drive oder Photos speichern:" + str(e))
                 raise(e)
-        self.show_markers()
+        self.show_markers(True)
 
     def center_on(self, lat, lon):
         self.mapview.set_zoom_at(17, 0, 0, 2.0)
@@ -666,8 +674,8 @@ class Locations(MDApp):
 
     def on_pause(self):
         print("on_pause")
-        lat, lon = self.centerLatLon()
-        self.store.put("latlon", lat=lat, lon=lon)
+        #lat, lon = self.centerLatLon()
+        #self.store.put("latlon", lat=lat, lon=lon)
         return True
 
     def on_stop(self):
@@ -862,7 +870,9 @@ class Locations(MDApp):
 
     @mainthread
     def message(self, m):
-        toast(m, duration=5)
+        #toast(m, duration=5.0)
+        t = Toast(duration=5)
+        t.toast(m)
 
     def xxx(self, *args, **kwargs):
         pass
