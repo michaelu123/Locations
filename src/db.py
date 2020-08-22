@@ -4,11 +4,12 @@ import time
 
 import utils
 
+#Sqlite types
 sqtype = {"int": "INTEGER", "bool": "INTEGER", "prozent": "INTEGER", "string": "TEXT", "float": "REAL"}
 threadLocal = threading.local()
 
 
-class DB():
+class DB:
     _dbinst = None
 
     @staticmethod
@@ -48,7 +49,7 @@ class DB():
             colnames.append(name)
             type = sqtype[feld.get("type")]
             if type == "REAL":
-                floatcols.append(i)
+                floatcols.append(i + 7)
             fields.append(name + " " + type)
         fields.append("PRIMARY KEY (lat_round, lon_round) ON CONFLICT REPLACE")
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_daten (" + ", ".join(fields) + ")"
@@ -84,7 +85,7 @@ class DB():
             colnames.append(name)
             type = sqtype[feld.get("type")]
             if type == "REAL":
-                floatcols.append(i)
+                floatcols.append(i + 8)
             fields.append(name + " " + type)
         fields.append("UNIQUE(creator, created, modified, lat_round, lon_round) ON CONFLICT REPLACE")
         stmt1 = "CREATE TABLE IF NOT EXISTS " + self.tabellenname + "_zusatz (" + ", ".join(fields) + ")"

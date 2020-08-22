@@ -4,9 +4,6 @@ import time
 
 from kivy import platform
 from kivy.clock import Clock, mainthread
-from kivymd.uix.button import MDFlatButton
-from kivymd.uix.dialog import MDDialog
-from kivymd.uix.filemanager import MDFileManager
 
 import utils
 
@@ -14,7 +11,6 @@ class Kamera:
     def __init__(self, app, **kwargs):
         self.app = app
         self.stellen = app.baseJS.get("gps").get("nachkommastellen")
-        self.fileManager = None
         self.path = "C:/"
         super().__init__(**kwargs)
 
