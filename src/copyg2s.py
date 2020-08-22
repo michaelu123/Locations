@@ -1,5 +1,7 @@
+import http.client as htcl
 import json
 import locale
+import os
 from datetime import datetime
 
 import config
@@ -9,7 +11,8 @@ import gsheets
 # MSSQL types
 sqtype = {"int": "INT", "bool": "TINYINT", "prozent": "TINYINT", "string": "VARCHAR(2048)", "float": "DOUBLE"}
 
-# copy Google sheets to LocationServer
+
+# copy Google sheets to (Location)Server
 class CopyG2S:
     def __init__(self, base):
         self.baseConfig = config.Config()
@@ -20,7 +23,7 @@ class CopyG2S:
             self.gsheet = gsheets.GSheet(self)
         except Exception as e:
             self.message("Kann Google Sheets nicht erreichen:" + str(e))
-            raise(e)
+            raise (e)
 
         try:
             userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
@@ -28,18 +31,21 @@ class CopyG2S:
             self.gphoto = gphotos.GPhoto(self)
         except Exception as e:
             self.message("Kann Google Photos nicht erreichen:" + str(e))
-            raise(e)
+            raise (e)
+        self.lsconn = htcl.HTTPConnection("localhost", port=5000)
 
     def copyg2s(self):
         minlat = -90.0
         maxlat = 90.0
         minlon = 0.0
         maxlon = 180.0
-        # sheetValues = self.gsheet.getValuesWithin(-90.0, 90.0, -180.0, 180.0)
-        # with open("gsheets.json", "w") as jsonFile:
-        #     json.dump(sheetValues, jsonFile, indent=4)
-        with open("gsheets.json", "r") as jsonFile:
-            sheetValues = json.load(jsonFile)
+        if not os.path.exists("gsheets.json"):
+            sheetValues = self.gsheet.getValuesWithin(-90.0, 90.0, -180.0, 180.0)
+            with open("gsheets.json", "w") as jsonFile:
+                json.dump(sheetValues, jsonFile, indent=4)
+        else:
+            with open("gsheets.json", "r") as jsonFile:
+                sheetValues = json.load(jsonFile)
         for tablename in sheetValues.keys():
             if tablename.endswith("_daten"):
                 colnames = ["creator", "created", "modified", "lat", "lon", "lat_round", "lon_round"]
@@ -69,10 +75,12 @@ class CopyG2S:
                 for i in floatcols:
                     row[i] = float(row[i].replace(",", "."))
                 for i, cname in enumerate(colnames):
-                    if cname == "created":
+                    if cname == "created" or cname == "modified":
                         val[cname] = self.toIso(row[i])
                     elif cname.endswith("_round"):
                         val[cname] = str(row[i])
+                    elif cname == "nr":
+                        pass
                     else:
                         if i < len(row):
                             v = row[i]
@@ -84,6 +92,7 @@ class CopyG2S:
                 vals.append(val)
                 # build chunks?
 
+            print("Table", tablename)
             if tablename.endswith("_images"):
                 for val in vals:
                     if val["image_url"].startswith("https"):
@@ -92,17 +101,46 @@ class CopyG2S:
                         self.imgpost(tablename, val)
             else:
                 self.post(tablename, vals)
+                # for val in vals:
+                #     self.post(tablename, val)
 
     def imgpost(self, tablename, val):
-        pass
+        creator = val["creator"]
+        created = val["created"]
+        lat = str(val["lat"])
+        lon = str(val["lon"])
+        lat_round = val["lat_round"]
+        lon_round = val["lon_round"]
+        url = val["image_url"]
+        x = url.find("_")
+        basename = url[x + 1:]
+
+        req = "/addimage/" + tablename + "?creator=" + creator + "&created=" + created + \
+              "&lat=" + lat + "&lon=" + lon + \
+              "&lat_round=" + lat_round + "&lon_round=" + lon_round + \
+              "&basename=" + basename
+        headers = {"Content-type": "image/jpeg"}
+        with open(url, "rb") as img:
+            body = img.read()
+        self.lsconn.request("POST", req, body, headers)
+        resp = self.lsconn.getresponse()
+        print(basename, resp.status, resp.reason)
 
     def post(self, tablename, vals):
-        pass
+        req = "/add/" + tablename
+        headers = {"Content-type": "application/json"}
+        js = json.dumps(vals)
+        self.lsconn.request("POST", req, js, headers)
+        resp = self.lsconn.getresponse()
+        sta = resp.status
+        if sta != 200:
+            print(tablename, sta, resp.reason, vals)
+            return
 
     def toIso(self, d):
         # d= 'ISO' or '2020.05.25 16:26:13'
         if len(d) != 19:
-            return d
+            d = "2000.01.01 01:00:00"
         yr = int(d[0:4])
         mo = int(d[5:7])
         dy = int(d[8:10])
@@ -125,9 +163,6 @@ class CopyG2S:
         print(*args)
 
 
-
-
-
 if __name__ == "__main__":
     # nc = True
     # x = MyMapMarker(lat=0, lon=0, nocache=nc)
@@ -145,4 +180,3 @@ if __name__ == "__main__":
         utils.printEx("setlocale", e)
     app = CopyG2S("Abstellanlagen")
     app.copyg2s()
-
