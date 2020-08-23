@@ -30,9 +30,12 @@ import config
 import db
 import gphotos
 import gsheets
+import serverintf
 import utils
 from data import Daten, Zusatz
 from kamera import Kamera
+
+useGoogle = False
 
 Builder.load_string(
     """
@@ -432,29 +435,35 @@ class Locations(MDApp):
 
         if self.future is not None:
             self.future.result()
-        self.future = self.executor.submit(self.setup2, base)
+        self.future = self.executor.submit(self.setup2)
 
-
-    def setup2(self, base):
+    def setup2(self):
         try:
             self.dbinst = db.DB.instance()
             self.dbinst.initDB(self)
-
-            self.message("Mit Google Sheets verbinden")
-            self.gsheet = gsheets.GSheet(self)
         except Exception as e:
-            self.message("Kann Google Sheets nicht erreichen:" + str(e))
-            raise(e)
+            self.message("Kann DB nicht öffnen:" + str(e))
+            raise (e)
 
-        try:
-            userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
-            self.message("Mit Google Photos verbinden als " + userInfo["name"])
-            self.gphoto = gphotos.GPhoto(self)
-        except Exception as e:
-            self.message("Kann Google Photos nicht erreichen:" + str(e))
-            raise(e)
+        if useGoogle:
+            try:
+                self.message("Mit Google Sheets verbinden")
+                self.gsheet = gsheets.GSheet(self)
+            except Exception as e:
+                self.message("Kann Google Sheets nicht erreichen:" + str(e))
+                raise(e)
+            try:
+                userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
+                self.message("Mit Google Photos verbinden als " + userInfo["name"])
+                self.gphoto = gphotos.GPhoto(self)
+            except Exception as e:
+                self.message("Kann Google Photos nicht erreichen:" + str(e))
+                raise(e)
+        else:
+            self.serverIntf = serverintf.ServerIntf(self.baseJS)
 
         self.loadSheet(False)
+
 
     def show_markers(self, fromSheets, *args):
         with Spinner():
@@ -479,13 +488,22 @@ class Locations(MDApp):
                 del self.markerMap[k]
 
             if fromSheets:
-                self.message("Lade Daten von Google Sheets")
-                try:
-                    sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
-                    self.dbinst.fillWith(sheetValues)
-                except Exception as e:
-                    self.message("Konnte Daten nicht von Google Sheets laden: " + str(e))
-                    raise(e)
+                if useGoogle:
+                    self.message("Lade Daten von Google Sheets")
+                    try:
+                        sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
+                        self.dbinst.fillWithSheetValues(sheetValues)
+                    except Exception as e:
+                        self.message("Konnte Daten nicht von Google Sheets laden: " + str(e))
+                        raise(e)
+                else:
+                    self.message("Lade Daten vom LocationServer")
+                    try:
+                        dbValues = self.serverIntf.getValuesWithin(minlat, maxlat, minlon, maxlon)
+                        self.dbinst.fillWithDBValues(dbValues)
+                    except Exception as e:
+                        self.message("Konnte Daten nicht vom LocationServer laden: " + str(e))
+                        raise (e)
             self.message("Lade Map Marker")
             markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
             self.show_markers2(markers)

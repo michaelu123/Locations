@@ -149,11 +149,10 @@ class DB:
                 if r1.rowcount == 0:  # row did not yet exist
                     vals = {"creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
-                    felder = self.baseJS.get("daten").get("felder")
-                    for feld in felder:
-                        vals[feld.get("name")] = None
+                    colnames = self.colnames["daten"]
+                    for col in colnames:
+                        vals[col] = None
                     vals[name] = text
-                    colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(colnames) + ")", vals)
             self.app.add_marker(lat, lon)  # TODO weg
         except Exception as e:
@@ -171,8 +170,8 @@ class DB:
             value = value[1]
 
             vals = {}
-            for feld in self.baseJS.get("daten").get("felder"):
-                vals[feld.get("name")] = None
+            for col in colnames:
+                vals[col] = None
             vals["lat"] = lat
             vals["lon"] = lon
             vals["lat_round"] = lat_round
@@ -239,10 +238,10 @@ class DB:
                     vals = {"nr": None, "creator": self.aliasname, "created": now, "modified": now, "lat": lat,
                             "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
-                    for feld in self.baseJS.get("zusatz").get("felder"):
-                        vals[feld.get("name")] = None
+                    colnames = self.colnames["zusatz"]
+                    for col in colnames:
+                        vals[col] = None
                     vals[name] = text
-                    colnames = [":" + k for k in vals.keys()]
                     c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(colnames) + ")", vals)
                     rowid = c.lastrowid
             self.app.add_marker(lat, lon)  # TODO weg
@@ -272,7 +271,7 @@ class DB:
                 c = conn.cursor()
                 vals = {"creator": self.aliasname, "created": now, "lat": lat, "lon": lon,
                         "lat_round": lat_round, "lon_round": lon_round, "image_path": filename, "image_url": None}
-                colnames = [":" + k for k in vals.keys()]
+                colnames = self.colname["images"]
                 c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(colnames) + ")", vals)
             self.app.add_marker(lat, lon)  # TODO weg
         except Exception as e:
@@ -370,7 +369,7 @@ class DB:
                     return True
         return False
 
-    def fillWith(self, values):
+    def fillWithSheetValues(self, values):
         conn = self.getConn()
         # sheet_name == tabellenname
         for sheet_name in values.keys():
@@ -397,7 +396,27 @@ class DB:
 
             with conn:
                 r = conn.executemany("INSERT INTO " + sheet_name + " VALUES(" + qmarks + ")", vals)
-                print("fillwith", sheet_name, r.rowcount)
+                print("fillwithSheetValues", sheet_name, r.rowcount)
+
+    def fillWithDBValues(self, values):
+        conn = self.getConn()
+        for table_name in values.keys():
+            kind = table_name.split("_")[-1]  # daten, zusatz
+            zusatz = kind == "zusatz"
+            colnames = self.colnames[kind]
+            nrcols = len(colnames)
+            qmarks = ",".join(["?" for i in range(nrcols)])
+            stmt = "INSERT INTO " + table_name + " VALUES(" + qmarks + ")"
+            dbvals = values[table_name] # dbvals is a list of dicts from MSSQL
+            vals = []
+            for dbval in dbvals:
+                val = [dbval[cn] for cn in colnames]
+                if zusatz:
+                    val[0] = None
+                vals.append(val)
+            with conn:
+                r = conn.executemany(stmt, vals)
+                print("fillwithDBValues", table_name, r.rowcount)
 
     def getNewOrChanged(self, since):
         conn = self.getConn()
