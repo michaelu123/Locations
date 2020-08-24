@@ -150,10 +150,11 @@ class DB:
                     vals = {"creator": self.aliasname, "created": now, "modified": now, "lat": lat, "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
                     colnames = self.colnames["daten"]
-                    for col in colnames:
+                    for col in colnames[7:]:
                         vals[col] = None
                     vals[name] = text
-                    c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(colnames) + ")", vals)
+                    kcolnames = [":" + k for k in colnames]
+                    c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(kcolnames) + ")", vals)
             self.app.add_marker(lat, lon)  # TODO weg
         except Exception as e:
             utils.printEx("update_daten:", e)
@@ -161,6 +162,7 @@ class DB:
     def insert_daten_from_osm(self, values):  # values = { [lat,lon]: properties }
         conn = self.getConn()
         colnames = self.colnames["daten"]
+        kcolnames = [":" + k for k in colnames]
         # now = time.strftime("%Y.%m.%d %H:%M:%S")
         for value in values.items():
             lon = value[0][0]
@@ -170,7 +172,7 @@ class DB:
             value = value[1]
 
             vals = {}
-            for col in colnames:
+            for col in colnames[7:]:
                 vals[col] = None
             vals["lat"] = lat
             vals["lon"] = lon
@@ -184,7 +186,7 @@ class DB:
             try:
                 with conn:
                     c = conn.cursor()
-                    c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(colnames) + ")", vals)
+                    c.execute("INSERT INTO " + self.tabellenname + "_daten VALUES(" + ",".join(kcolnames) + ")", vals)
             except sqlite3.IntegrityError as e:
                 print("duplicate", vals)
                 utils.printEx("insert_daten_from_osm:", e)
@@ -235,14 +237,15 @@ class DB:
                 if not nr or r1.rowcount == 0:  # row did not yet exist
                     lat_round = str(round(lat, self.stellen))
                     lon_round = str(round(lon, self.stellen))
-                    vals = {"nr": None, "creator": self.aliasname, "created": now, "modified": now, "lat": lat,
-                            "lon": lon,
+                    vals = {"nr": None, "creator": self.aliasname, "created": now, "modified": now,
+                            "lat": lat, "lon": lon,
                             "lat_round": lat_round, "lon_round": lon_round}
                     colnames = self.colnames["zusatz"]
-                    for col in colnames:
+                    for col in colnames[8:]:
                         vals[col] = None
                     vals[name] = text
-                    c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(colnames) + ")", vals)
+                    kcolnames = [":" + k for k in colnames]
+                    c.execute("INSERT INTO " + self.tabellenname + "_zusatz VALUES(" + ",".join(kcolnames) + ")", vals)
                     rowid = c.lastrowid
             self.app.add_marker(lat, lon)  # TODO weg
             return rowid
@@ -271,8 +274,9 @@ class DB:
                 c = conn.cursor()
                 vals = {"creator": self.aliasname, "created": now, "lat": lat, "lon": lon,
                         "lat_round": lat_round, "lon_round": lon_round, "image_path": filename, "image_url": None}
-                colnames = self.colname["images"]
-                c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(colnames) + ")", vals)
+                colnames = self.colnames["images"]
+                kcolnames = [":" + k for k in colnames]
+                c.execute("INSERT INTO " + self.tabellenname + "_images VALUES(" + ",".join(kcolnames) + ")", vals)
             self.app.add_marker(lat, lon)  # TODO weg
         except Exception as e:
             utils.printEx("insert_image:", e)
@@ -407,13 +411,10 @@ class DB:
             nrcols = len(colnames)
             qmarks = ",".join(["?" for i in range(nrcols)])
             stmt = "INSERT INTO " + table_name + " VALUES(" + qmarks + ")"
-            dbvals = values[table_name] # dbvals is a list of dicts from MSSQL
-            vals = []
-            for dbval in dbvals:
-                val = [dbval[cn] for cn in colnames]
+            vals = values[table_name] # dbvals is a list of dicts from MSSQL
+            for val in vals:
                 if zusatz:
                     val[0] = None
-                vals.append(val)
             with conn:
                 r = conn.executemany(stmt, vals)
                 print("fillwithDBValues", table_name, r.rowcount)
@@ -446,6 +447,11 @@ class DB:
             c.execute("DELETE FROM " + self.tabellenname + "_daten")
             c.execute("DELETE FROM " + self.tabellenname + "_zusatz")
             c.execute("DELETE FROM " + self.tabellenname + "_images")
+
+    def colNamesFor(self, table_name):
+        kind = table_name.split("_")[-1]  # daten, zusatz
+        return self.colnames[kind]
+
 
 # import config
 # class App:

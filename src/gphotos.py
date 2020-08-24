@@ -193,7 +193,7 @@ class GPhoto(Google):
         else:
             raise RuntimeError("Could not add photos to library. Server Response -- {0}".format(resp))
 
-    def getImage(self, id, w=0, h=0):
+    def getImage(self, id, maxdim=0):
         self.getServicePH()
         try :
             item = self.servicePH.mediaItems().get(mediaItemId=id).execute()
@@ -225,9 +225,10 @@ class GPhoto(Google):
 
         baseUrl = item["baseUrl"]
         filename = item["filename"]
-        if not w:
+        if maxdim:
+            w = h = maxdim
+        else:
             w = item["mediaMetadata"]["width"]
-        if not h:
             h = item["mediaMetadata"]["height"]
         filename = utils.getDataDir() + f"/images/{w}x{h}_{filename}"
         if os.path.exists(filename):
@@ -242,7 +243,7 @@ class GPhoto(Google):
         except OSError as err:
             raise RuntimeError("Could not write file '{0}' -- {1}".format(filename, err))
 
-    def batchGetImages(self, ids, w=0, h=0):
+    def batchGetImages(self, ids, maxdim=0):
         self.getServicePH()
         resp = self.servicePH.mediaItems().batchGet(mediaItemIds=ids).execute()
         # print("batchGet", resp)
@@ -306,9 +307,10 @@ class GPhoto(Google):
         for item in items:
             baseUrl = item["mediaItem"]["baseUrl"]
             filename = item["mediaItem"]["filename"]
-            if w == 0:
+            if maxdim:
+                w = h = maxdim
+            else:
                 w = item["mediaItem"]["mediaMetadata"]["width"]
-            if h == 0:
                 h = item["mediaItem"]["mediaMetadata"]["height"]
             self.session = AuthorizedSession(self.getCreds())
             resp = self.session.get(baseUrl + f"=w{w}-h{h}")

@@ -1,14 +1,18 @@
 import http.client as htcl
 import json
+import os
 from datetime import datetime
+
+import utils
 
 # MSSQL types
 sqtype = {"int": "INT", "bool": "TINYINT", "prozent": "TINYINT", "string": "VARCHAR(2048)", "float": "DOUBLE"}
 
 
 class ServerIntf:
-    def __init__(self, baseJS):
+    def __init__(self, baseJS, dbinst):
         self.baseJS = baseJS
+        self.dbinst = dbinst
         self.lsconn = htcl.HTTPConnection("localhost", port=5000)
         self.tabellenname = self.baseJS.get("db_tabellenname")
         self.sayHello()
@@ -77,7 +81,7 @@ class ServerIntf:
             print("Table", tablename)
             if tablename.endswith("_images"):
                 for val in vals:
-                    if val["image_url"].startswith("https"):
+                    if val["image_url"].startswith("http"):
                         filename = self.gphoto.getImage(val["image_path"])
                         val["image_url"] = filename  # './images/4032x3024_48.08594_11.53597_20200525_162515.jpg'
             dbValues[tablename] = vals
@@ -88,16 +92,16 @@ class ServerIntf:
         self.lsconn.request("GET", req)
         resp = self.lsconn.getresponse()
         if resp.status != 200:
-            raise ValueError("Keine Verbindung zum LocationServer")
+            raise ValueError("Keine Verbindung zum LocationsServer")
         js = json.loads(resp.read().decode("utf-8"))
         # js = ['abstellanlagen_daten', 'abstellanlagen_images', 'abstellanlagen_zusatz']
         for j in js:
             if j == self.tabellenname + "_daten":
                 return
-        raise ValueError("Keine Tabelle " + tablename + "_daten auf dem LocationServer gefunden")
+        raise ValueError("Keine Tabelle " + self.tabellenname + "_daten auf dem LocationsServer gefunden")
 
     # get the image from Google and store it on the server,
-    # and insert a row into the LocationServer DB
+    # and insert a row into the LocationsServer DB
     def imgpost(self, tablename, val):
         creator = val["creator"]
         created = val["created"]
@@ -139,7 +143,55 @@ class ServerIntf:
             self.lsconn.request("GET", req)
             resp = self.lsconn.getresponse()
             if resp.status != 200:
-                raise ValueError("Keine Verbindung zum LocationServer")
+                raise ValueError("Keine Verbindung zum LocationsServer")
             js = json.loads(resp.read().decode("utf-8"))
             res[tname] = js
         return res
+
+    def getImage(self, basename, maxdim):
+        print("getImage", basename, maxdim) # getImage 48.08127_11.52709_20200525_165425.jpg 200 200
+        filename = utils.getDataDir() + f"/images/{maxdim}_{basename}"
+        if os.path.exists(filename):
+            return filename
+
+        tablename = self.tabellenname + "_images"
+        req = f"/getimage/{tablename}/{basename}?maxdim={maxdim}"
+        self.lsconn.request("GET", req)
+        resp = self.lsconn.getresponse()
+        if resp.status != 200:
+            raise ValueError("Keine Verbindung zum LocationsServer")
+        img = resp.read()
+        with open(filename, "wb") as f:
+            f.write(img)
+        return filename
+
+    def upload_photos(self, photos):
+        tablename = self.tabellenname + "_images"
+        headers = {"Content-type": "image/jpeg"}
+        for photo in photos:
+            print("upload", photo)
+            filepath = photo["filepath"]
+            basename = os.path.basename(filepath)
+            req = f"/addimage/{tablename}/{basename}"
+            with open(filepath, "rb") as img:
+                body = img.read()
+            self.lsconn.request("POST", req, body, headers)
+            resp = self.lsconn.getresponse()
+            print(basename, resp.status, resp.reason)
+            if resp.status != 200:
+                raise ValueError("Konnte Photo nicht hochladen")
+            js = json.loads(resp.read().decode("utf-8"))
+            photo["id"] = basename
+            photo["url"] = js["url"]
+            pass
+
+    def appendValues(self, table_name, vals):
+        print("appendValues", table_name, vals)
+        colnames = self.dbinst.colNamesFor(table_name)
+        newvals = []
+        for val in vals:
+            newvals.append(dict(zip(colnames, val)))
+        self.post(table_name, newvals)
+
+
+

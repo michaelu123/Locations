@@ -114,7 +114,7 @@ class TextField(MDTextField):
         elif self.limited is not None:
             self.text, val = self.limit()
         else:
-            val = self.text
+            val = self.text if self.text != "" else None
         self.daten.update(self.feldname, val, self.daten.app.mapview.lat, self.daten.app.mapview.lon)
 
 
@@ -189,7 +189,10 @@ class Daten(Form):
         imlist = []
         for tuple in img_tuples:  # (image_path, None)  or (mediaId, image_url)
             if tuple[1]:
-                img = self.app.gphoto.getImage(tuple[0], w=200, h=200)
+                if hasattr(self.app, "gphoto"):
+                    img = self.app.gphoto.getImage(tuple[0], 200)
+                else:
+                    img = self.app.serverIntf.getImage(tuple[0], 200)
                 if img is not None:
                     imlist.append((img, tuple[0]))
             else:

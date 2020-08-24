@@ -283,7 +283,10 @@ class Images(Screen):
                 self.show_single_image(t[0])
             else:
                 maxdim = self.app.getConfigValue("maxdim", 1024)
-                im = self.app.gphoto.getImage(t[1], w=maxdim, h=maxdim)
+                if useGoogle:
+                    im = self.app.gphoto.getImage(t[1], maxdim)
+                else:
+                    im = self.app.serverIntf.getImage(t[1], maxdim)
                 self.show_single_image(im)
             return
         self.bl.clear_widgets()
@@ -306,7 +309,10 @@ class Images(Screen):
                 src = args[0].source
             else:
                 maxdim = self.app.getConfigValue("maxdim", 1024)
-                src = self.app.gphoto.getImage(args[0].mediaId, w=maxdim, h=maxdim)
+                if useGoogle:
+                    src = self.app.gphoto.getImage(args[0].mediaId, maxdim)
+                else:
+                    src = self.app.serverIntf.getImage(args[0].mediaId, maxdim)
         else: # src
             src = args[0]
         app.single.ids.im.source = src
@@ -460,7 +466,7 @@ class Locations(MDApp):
                 self.message("Kann Google Photos nicht erreichen:" + str(e))
                 raise(e)
         else:
-            self.serverIntf = serverintf.ServerIntf(self.baseJS)
+            self.serverIntf = serverintf.ServerIntf(self.baseJS, self.dbinst)
 
         self.loadSheet(False)
 
@@ -497,12 +503,12 @@ class Locations(MDApp):
                         self.message("Konnte Daten nicht von Google Sheets laden: " + str(e))
                         raise(e)
                 else:
-                    self.message("Lade Daten vom LocationServer")
+                    self.message("Lade Daten vom LocationsServer")
                     try:
                         dbValues = self.serverIntf.getValuesWithin(minlat, maxlat, minlon, maxlon)
                         self.dbinst.fillWithDBValues(dbValues)
                     except Exception as e:
-                        self.message("Konnte Daten nicht vom LocationServer laden: " + str(e))
+                        self.message("Konnte Daten nicht vom LocationsServer laden: " + str(e))
                         raise (e)
             self.message("Lade Map Marker")
             markers = self.dbinst.getMarkerLocs(minlat, maxlat, minlon, maxlon)
@@ -581,11 +587,10 @@ class Locations(MDApp):
             self.show_markers(False)
 
     def storeImages(self, newImgs):
-        # tuples to list, skip if image_path=row[6] is already a mediaId
-        # assume a mediaId is loooong
-        unsavedImgs = [list(row) for row in newImgs if len(row[6]) < 60]
+        # tuples to list, skip if image_url=row[7] is already set
+        unsavedImgs = [list(row) for row in newImgs if not row[7].startswith("http")]
         # don't store already saved images again in gphoto:
-        savedImgs = [list(row) for row in newImgs if len(row[6]) > 60]
+        savedImgs = [list(row) for row in newImgs if row[7].startswith("http")]
         photo_objs = [{"filepath": utils.getDataDir() + "/images/" + row[6],
                        "desc": row[6][0:row[6].index(".jpg")]} for row in unsavedImgs]
         # if len(photo_objs) > 0:
@@ -593,7 +598,10 @@ class Locations(MDApp):
         pcnt = len(photo_objs)
         for i, photo_obj in enumerate(photo_objs):
             self.message(f"Speichere Bild {i+1} von {pcnt}")
-            self.gphoto.upload_photos([photo_obj])
+            if useGoogle:
+                self.gphoto.upload_photos([photo_obj])
+            else:
+                self.serverIntf.upload_photos([photo_obj])
         for i, row in enumerate(unsavedImgs):
             old_image_path = row[6]
             new_image_path = photo_objs[i]["id"]
@@ -602,6 +610,7 @@ class Locations(MDApp):
             row[6] = new_image_path
             row[7] = new_image_url
         # store all of them in gsheets (duplicates removed by gsheet script)
+        # or in Locationsserver DB
         unsavedImgs.extend(savedImgs)
         return unsavedImgs, photo_objs
 
@@ -630,7 +639,10 @@ class Locations(MDApp):
                     vals = newvals[sheet_name]
                     if len(vals) > 0:
                         recCnt += len(vals)
-                        self.gsheet.appendValues(sheet_name, vals)
+                        if useGoogle:
+                            self.gsheet.appendValues(sheet_name, vals)
+                        else:
+                            self.serverIntf.appendValues(sheet_name, vals)
                 self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
                 for obj in photo_objs:
                     os.remove(obj["filepath"])
