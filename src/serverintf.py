@@ -7,15 +7,26 @@ import utils
 
 # MSSQL types
 sqtype = {"int": "INT", "bool": "TINYINT", "prozent": "TINYINT", "string": "VARCHAR(2048)", "float": "DOUBLE"}
-
+LOCATIONSSERVER = "raspberrylan.1qgrvqjevtodmryr.myfritz.net"
 
 class ServerIntf:
     def __init__(self, baseJS, dbinst):
         self.baseJS = baseJS
         self.dbinst = dbinst
-        self.lsconn = htcl.HTTPConnection("localhost", port=5000)
+        self.lsconn = htcl.HTTPConnection(LOCATIONSSERVER)
         self.tabellenname = self.baseJS.get("db_tabellenname")
         self.sayHello()
+
+    def reqWithRetry(self, *args, **kwargs):
+        try:
+            self.lsconn.request(*args, **kwargs)
+            resp = self.lsconn.getresponse()
+        except:
+            self.lsconn.close()
+            self.lsconn = htcl.HTTPConnection(LOCATIONSSERVER)
+            self.lsconn.request(*args, **kwargs)
+            resp = self.lsconn.getresponse()
+        return resp
 
     def toIso(self, d):
         # d= 'ISO' or '2020.05.25 16:26:13'
@@ -89,8 +100,7 @@ class ServerIntf:
 
     def sayHello(self):
         req = "/tables"
-        self.lsconn.request("GET", req)
-        resp = self.lsconn.getresponse()
+        resp = self.reqWithRetry("GET", req)
         if resp.status != 200:
             raise ValueError("Keine Verbindung zum LocationsServer")
         js = json.loads(resp.read().decode("utf-8"))
@@ -103,33 +113,26 @@ class ServerIntf:
     # get the image from Google and store it on the server,
     # and insert a row into the LocationsServer DB
     def imgpost(self, tablename, val):
-        creator = val["creator"]
-        created = val["created"]
-        lat = str(val["lat"])
-        lon = str(val["lon"])
-        lat_round = val["lat_round"]
-        lon_round = val["lon_round"]
         url = val["image_url"]
         x = url.find("_")
         basename = url[x + 1:]
-
-        req = "/addimage/" + tablename + "?creator=" + creator + "&created=" + created + \
-              "&lat=" + lat + "&lon=" + lon + \
-              "&lat_round=" + lat_round + "&lon_round=" + lon_round + \
-              "&basename=" + basename
         headers = {"Content-type": "image/jpeg"}
+        req = f"/addimage/{tablename}/{basename}"
         with open(url, "rb") as img:
             body = img.read()
-        self.lsconn.request("POST", req, body, headers)
-        resp = self.lsconn.getresponse()
+        resp = self.reqWithRetry("POST", req, body, headers)
         print(basename, resp.status, resp.reason)
+        if resp.status != 200:
+            raise ValueError("Konnte Photo nicht hochladen")
+        js = json.loads(resp.read().decode("utf-8"))
+        val["image_url"] = js["url"]
+        self.post(tablename, val)
 
     def post(self, tablename, vals):
         req = "/add/" + tablename
         headers = {"Content-type": "application/json"}
         js = json.dumps(vals)
-        self.lsconn.request("POST", req, js, headers)
-        resp = self.lsconn.getresponse()
+        resp = self.reqWithRetry("POST", req, js, headers)
         sta = resp.status
         if sta != 200:
             print(tablename, sta, resp.reason, vals)
@@ -140,8 +143,7 @@ class ServerIntf:
         res = {}
         for tname in tablenames:
             req = f"/region/{tname}?minlat={minlat}&maxlat={maxlat}&minlon={minlon}&maxlon={maxlon}"
-            self.lsconn.request("GET", req)
-            resp = self.lsconn.getresponse()
+            resp = self.reqWithRetry("GET", req)
             if resp.status != 200:
                 raise ValueError("Keine Verbindung zum LocationsServer")
             js = json.loads(resp.read().decode("utf-8"))
@@ -156,8 +158,7 @@ class ServerIntf:
 
         tablename = self.tabellenname + "_images"
         req = f"/getimage/{tablename}/{basename}?maxdim={maxdim}"
-        self.lsconn.request("GET", req)
-        resp = self.lsconn.getresponse()
+        resp = self.reqWithRetry("GET", req)
         if resp.status != 200:
             raise ValueError("Keine Verbindung zum LocationsServer")
         img = resp.read()
@@ -175,8 +176,7 @@ class ServerIntf:
             req = f"/addimage/{tablename}/{basename}"
             with open(filepath, "rb") as img:
                 body = img.read()
-            self.lsconn.request("POST", req, body, headers)
-            resp = self.lsconn.getresponse()
+            resp = self.reqWithRetry("POST", req, body, headers)
             print(basename, resp.status, resp.reason)
             if resp.status != 200:
                 raise ValueError("Konnte Photo nicht hochladen")

@@ -35,8 +35,6 @@ import utils
 from data import Daten, Zusatz
 from kamera import Kamera
 
-useGoogle = False
-
 Builder.load_string(
     """
 #:import MapSource kivy_garden.mapview.MapSource
@@ -283,7 +281,7 @@ class Images(Screen):
                 self.show_single_image(t[0])
             else:
                 maxdim = self.app.getConfigValue("maxdim", 1024)
-                if useGoogle:
+                if self.app.useGoogle:
                     im = self.app.gphoto.getImage(t[1], maxdim)
                 else:
                     im = self.app.serverIntf.getImage(t[1], maxdim)
@@ -309,7 +307,7 @@ class Images(Screen):
                 src = args[0].source
             else:
                 maxdim = self.app.getConfigValue("maxdim", 1024)
-                if useGoogle:
+                if self.app.useGoogle:
                     src = self.app.gphoto.getImage(args[0].mediaId, maxdim)
                 else:
                     src = self.app.serverIntf.getImage(args[0].mediaId, maxdim)
@@ -391,7 +389,7 @@ class Locations(MDApp):
         laststored = self.getConfigValue("gespeichert")
         if not laststored:
             self.setConfigValue("gespeichert", time.strftime("%Y.%m.%d %H:%M:%S"))
-
+        self.useGoogle = bool(self.getConfigValue("useGoogle"))
         self.setup(base)
         return self.root
 
@@ -451,7 +449,7 @@ class Locations(MDApp):
             self.message("Kann DB nicht öffnen:" + str(e))
             raise (e)
 
-        if useGoogle:
+        if self.useGoogle:
             try:
                 self.message("Mit Google Sheets verbinden")
                 self.gsheet = gsheets.GSheet(self)
@@ -494,7 +492,7 @@ class Locations(MDApp):
                 del self.markerMap[k]
 
             if fromSheets:
-                if useGoogle:
+                if self.useGoogle:
                     self.message("Lade Daten von Google Sheets")
                     try:
                         sheetValues = self.gsheet.getValuesWithin(minlat, maxlat, minlon, maxlon)
@@ -508,6 +506,7 @@ class Locations(MDApp):
                         dbValues = self.serverIntf.getValuesWithin(minlat, maxlat, minlon, maxlon)
                         self.dbinst.fillWithDBValues(dbValues)
                     except Exception as e:
+                        utils.printEx("Konnte Daten nicht vom LocationsServer laden", e)
                         self.message("Konnte Daten nicht vom LocationsServer laden: " + str(e))
                         raise (e)
             self.message("Lade Map Marker")
@@ -598,7 +597,7 @@ class Locations(MDApp):
         pcnt = len(photo_objs)
         for i, photo_obj in enumerate(photo_objs):
             self.message(f"Speichere Bild {i+1} von {pcnt}")
-            if useGoogle:
+            if self.useGoogle:
                 self.gphoto.upload_photos([photo_obj])
             else:
                 self.serverIntf.upload_photos([photo_obj])
@@ -639,7 +638,7 @@ class Locations(MDApp):
                     vals = newvals[sheet_name]
                     if len(vals) > 0:
                         recCnt += len(vals)
-                        if useGoogle:
+                        if self.useGoogle:
                             self.gsheet.appendValues(sheet_name, vals)
                         else:
                             self.serverIntf.appendValues(sheet_name, vals)
@@ -841,6 +840,7 @@ class Locations(MDApp):
             # 'pathexample': 'c:/temp',
             'gespeichert': '',
             'maxdim': 1024,
+            'useGoogle': False,
         })
 
     def build_settings(self, settings):
@@ -857,6 +857,11 @@ class Locations(MDApp):
              'desc': 'Max photo size from Goggle Photos',
              'section': 'Locations',
              'key': 'maxdim'},
+            {'type': 'bool',
+             'title': 'Speichern mit Google',
+             'desc': 'On: Gsheets, GPhotos, Off: LocationsServer',
+             'section': 'Locations',
+             'key': 'useGoogle'},
             # {'type': 'bool',
             #  'title': 'A boolean setting',
             #  'desc': 'Boolean description text',
@@ -884,8 +889,17 @@ class Locations(MDApp):
 
     def on_config_change(self, config, section, key, value):
         print(config, section, key, value)
+        if key == "useGoogle":
+            self.useGoogle = value
+            self.dbinst.deleteAll()
+            self.gsheet = None
+            self.gphoto = None
+            self.serverIntf = None
+            self.setup(self.selected_base)
 
     def getConfigValue(self, param, fallback=""):
+        if param == "useGoogle":
+            return self.config.getboolean("Locations", param)
         return self.config.get("Locations", param, fallback=fallback)
 
     def setConfigValue(self, param, value):
