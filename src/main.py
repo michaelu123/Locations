@@ -383,7 +383,7 @@ class Locations(MDApp):
         # utils.walk(utils.getDataDir())
         # print("------------getExternalFilesDir", utils.getExternalFilesDir())
         # utils.walk(utils.getExternalFilesDir())
-        self.executor = ThreadPoolExecutor(max_workers = 1)
+        self.executor = ThreadPoolExecutor(max_workers=1)
         self.future = None
 
         laststored = self.getConfigValue("gespeichert")
@@ -416,8 +416,8 @@ class Locations(MDApp):
         self.mapview.map_source.max_zoom = 19
         self.mapview.map_source.bounds = self.baseConfig.getGPSArea(self.selected_base)
         # Hack, trying to fix random zoom bug
-        #self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
-        #self.mapview._scatter.scale_max: 2.0  # MUH was 3!?
+        # self.mapview._scatter.scale_min = 0.5  # MUH was 0.2
+        # self.mapview._scatter.scale_max: 2.0  # MUH was 3!?
 
         self.images = Images(self, name="Images")
         self.root.sm.add_widget(self.images)
@@ -455,29 +455,29 @@ class Locations(MDApp):
                 self.gsheet = gsheets.GSheet(self)
             except Exception as e:
                 self.message("Kann Google Sheets nicht erreichen:" + str(e))
-                raise(e)
+                raise (e)
             try:
                 userInfo = self.gsheet.get_user_info(self.gsheet.getCreds())
                 self.message("Mit Google Photos verbinden als " + userInfo["name"])
                 self.gphoto = gphotos.GPhoto(self)
             except Exception as e:
                 self.message("Kann Google Photos nicht erreichen:" + str(e))
-                raise(e)
+                raise (e)
         else:
-            self.serverIntf = serverintf.ServerIntf(self.baseJS, self.dbinst)
+            self.serverIntf = serverintf.ServerIntf(self)
 
         self.loadSheet(False)
-
 
     def show_markers(self, fromSheets, *args):
         with Spinner():
             clat = self.mapview.centerlat
             clon = self.mapview.centerlon
             # roughly a square on the map
-            minlat = clat - 0.005
-            maxlat = clat + 0.005
-            minlon = clon - 0.009
-            maxlon = clon + 0.009
+            delta = float(self.getConfigValue("delta", "5")) / 1000.0
+            minlat = clat - delta
+            maxlat = clat + delta
+            minlon = clon - 2 * delta
+            maxlon = clon + 2 * delta
 
             for k in list(self.markerMap.keys()):
                 # lat, lon = k.split(":")
@@ -499,7 +499,7 @@ class Locations(MDApp):
                         self.dbinst.fillWithSheetValues(sheetValues)
                     except Exception as e:
                         self.message("Konnte Daten nicht von Google Sheets laden: " + str(e))
-                        raise(e)
+                        raise (e)
                 else:
                     self.message("Lade Daten vom LocationsServer")
                     try:
@@ -580,7 +580,7 @@ class Locations(MDApp):
                 lat = gps.get("center_lat")
                 lon = gps.get("center_lon")
         self.center_on(lat, lon)
-        if newCenter: # called from UI
+        if newCenter:  # called from UI
             self.future = self.executor.submit(self.show_markers, True)
         else:
             self.show_markers(False)
@@ -596,7 +596,7 @@ class Locations(MDApp):
         #     self.gphoto.upload_photos(photo_objs)
         pcnt = len(photo_objs)
         for i, photo_obj in enumerate(photo_objs):
-            self.message(f"Speichere Bild {i+1} von {pcnt}")
+            self.message(f"Speichere Bild {i + 1} von {pcnt}")
             if self.useGoogle:
                 self.gphoto.upload_photos([photo_obj])
             else:
@@ -650,7 +650,7 @@ class Locations(MDApp):
                 self.dbinst.deleteAll()
             except Exception as e:
                 self.message("Konnte nicht in Google Drive oder Photos speichern:" + str(e))
-                raise(e)
+                raise (e)
         self.show_markers(True)
 
     def center_on(self, lat, lon):
@@ -703,8 +703,8 @@ class Locations(MDApp):
 
     def on_pause(self):
         print("on_pause")
-        #lat, lon = self.centerLatLon()
-        #self.store.put("latlon", lat=lat, lon=lon)
+        # lat, lon = self.centerLatLon()
+        # self.store.put("latlon", lat=lat, lon=lon)
         return True
 
     def on_stop(self):
@@ -830,18 +830,24 @@ class Locations(MDApp):
             self.lastScreen = None
         return True
 
+    configDefaults = {
+        # 'boolexample': True,
+        # 'numericexample': 10,
+        # 'stringexample': 'somestring',
+        # 'optionsexample': 'options2',
+        # 'pathexample': 'c:/temp',
+        'gespeichert': '',
+        'maxdim': 1024,
+        'useGoogle': False,
+        'delta': 5,
+        'serverName': "raspberrylan.1qgrvqjevtodmryr.myfritz.net",
+        'serverPort': 80,
+        'restoreDefaults': False,
+    }
+
     # see https://www.youtube.com/watch?v=oQdGWeN51EE
     def build_config(self, config):
-        config.setdefaults('Locations', {
-            # 'boolexample': True,
-            # 'numericexample': 10,
-            # 'stringexample': 'somestring',
-            # 'optionsexample': 'options2',
-            # 'pathexample': 'c:/temp',
-            'gespeichert': '',
-            'maxdim': 1024,
-            'useGoogle': False,
-        })
+        config.setdefaults('Locations', self.configDefaults)
 
     def build_settings(self, settings):
         settings_json = json.dumps([
@@ -854,7 +860,7 @@ class Locations(MDApp):
              'key': 'gespeichert'},
             {'type': 'numeric',
              'title': 'Max Dim',
-             'desc': 'Max photo size from Goggle Photos',
+             'desc': 'Max Größe der Photos vom LocationsServer oder Goggle Photos',
              'section': 'Locations',
              'key': 'maxdim'},
             {'type': 'bool',
@@ -862,6 +868,26 @@ class Locations(MDApp):
              'desc': 'On: Gsheets, GPhotos, Off: LocationsServer',
              'section': 'Locations',
              'key': 'useGoogle'},
+            {'type': 'numeric',
+             'title': 'Größe der MapMarker-Region',
+             'desc': 'Bestimmt die Größe der Kartenfläche, die mit MapMarkern gefüllt ist',
+             'section': 'Locations',
+             'key': 'delta'},
+            {'type': 'string',
+             'title': 'Server URL',
+             'desc': 'Name des LocationsServer',
+             'section': 'Locations',
+             'key': 'serverName'},
+            {'type': 'numeric',
+             'title': 'Server Portnummer',
+             'desc': 'Portnummer des LocationsServer',
+             'section': 'Locations',
+             'key': 'serverPort'},
+            {'type': 'bool',
+             'title': 'Default-Werte wiederherstellen',
+             'desc': 'Hier sichtbar leider nur nach Neustart, aber schon wirksam!',
+             'section': 'Locations',
+             'key': 'restoreDefaults'},
             # {'type': 'bool',
             #  'title': 'A boolean setting',
             #  'desc': 'Boolean description text',
@@ -886,9 +912,12 @@ class Locations(MDApp):
         ])
 
         settings.add_json_panel('Locations', self.config, data=settings_json)
+        print("xxx")
 
     def on_config_change(self, config, section, key, value):
         print(config, section, key, value)
+        if section != "Locations":
+            return
         if key == "useGoogle":
             self.useGoogle = value
             self.dbinst.deleteAll()
@@ -896,6 +925,11 @@ class Locations(MDApp):
             self.gphoto = None
             self.serverIntf = None
             self.setup(self.selected_base)
+        if key == "restoreDefaults":
+            defaults = self.configDefaults.copy()
+            del defaults["gespeichert"]
+            self.config.setall(section, defaults)
+            self.config.write()
 
     def getConfigValue(self, param, fallback=""):
         if param == "useGoogle":
@@ -914,12 +948,13 @@ class Locations(MDApp):
 
     @mainthread
     def message(self, m):
-        #toast(m, duration=5.0)
+        # toast(m, duration=5.0)
         t = Toast(duration=5)
         t.toast(m)
 
     def xxx(self, *args, **kwargs):
         pass
+
 
 if __name__ == "__main__":
     # nc = True

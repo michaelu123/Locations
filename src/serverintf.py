@@ -7,13 +7,19 @@ import utils
 
 # MSSQL types
 sqtype = {"int": "INT", "bool": "TINYINT", "prozent": "TINYINT", "string": "VARCHAR(2048)", "float": "DOUBLE"}
-LOCATIONSSERVER = "raspberrylan.1qgrvqjevtodmryr.myfritz.net"
+
+# LOCATIONSSERVER = "raspberrylan.1qgrvqjevtodmryr.myfritz.net"
+# LOCATIONSSERVER_PORT = 80
+# LOCATIONSSERVER = "localhost"
+# LOCATIONSSERVER_PORT=5000
 
 class ServerIntf:
-    def __init__(self, baseJS, dbinst):
-        self.baseJS = baseJS
-        self.dbinst = dbinst
-        self.lsconn = htcl.HTTPConnection(LOCATIONSSERVER)
+    def __init__(self, app):
+        self.baseJS = app.baseJS
+        self.dbinst = app.dbinst
+        self.url = app.getConfigValue("serverName", "localhost")
+        self.port = int(app.getConfigValue("serverPort", 80))
+        self.lsconn = htcl.HTTPConnection(self.url, port=self.port)
         self.tabellenname = self.baseJS.get("db_tabellenname")
         self.sayHello()
 
@@ -23,7 +29,7 @@ class ServerIntf:
             resp = self.lsconn.getresponse()
         except:
             self.lsconn.close()
-            self.lsconn = htcl.HTTPConnection(LOCATIONSSERVER)
+            self.lsconn = htcl.HTTPConnection(self.url, self.port)
             self.lsconn.request(*args, **kwargs)
             resp = self.lsconn.getresponse()
         return resp
@@ -135,8 +141,10 @@ class ServerIntf:
         resp = self.reqWithRetry("POST", req, js, headers)
         sta = resp.status
         if sta != 200:
-            print(tablename, sta, resp.reason, vals)
-            return
+            print("Error", tablename, sta, resp.reason, vals)
+        else:
+            js = json.loads(resp.read().decode("utf-8"))
+            print("Result", js)
 
     def getValuesWithin(self, minlat, maxlat, minlon, maxlon):
         tablenames = [self.tabellenname + "_daten", self.tabellenname + "_images", self.tabellenname + "_zusatz"]
@@ -151,7 +159,7 @@ class ServerIntf:
         return res
 
     def getImage(self, basename, maxdim):
-        print("getImage", basename, maxdim) # getImage 48.08127_11.52709_20200525_165425.jpg 200 200
+        print("getImage", basename, maxdim)  # getImage 48.08127_11.52709_20200525_165425.jpg 200 200
         filename = utils.getDataDir() + f"/images/{maxdim}_{basename}"
         if os.path.exists(filename):
             return filename
@@ -192,6 +200,3 @@ class ServerIntf:
         for val in vals:
             newvals.append(dict(zip(colnames, val)))
         self.post(table_name, newvals)
-
-
-
