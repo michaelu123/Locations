@@ -285,7 +285,10 @@ class Images(Screen):
                     im = self.app.gphoto.getImage(t[1], maxdim)
                 else:
                     im = self.app.serverIntf.getImage(t[1], maxdim)
-                self.show_single_image(im)
+                if im is None:
+                    self.app.message("Kann Bild nicht laden")
+                else:
+                    self.show_single_image(im)
             return
         self.bl.clear_widgets()
         for i, cp in enumerate(copy_list):
@@ -311,6 +314,9 @@ class Images(Screen):
                     src = self.app.gphoto.getImage(args[0].mediaId, maxdim)
                 else:
                     src = self.app.serverIntf.getImage(args[0].mediaId, maxdim)
+                if src is None:
+                    self.app.message("Kann Bild nicht laden")
+                    return
         else: # src
             src = args[0]
         app.single.ids.im.source = src
@@ -838,6 +844,7 @@ class Locations(MDApp):
         # 'pathexample': 'c:/temp',
         'gespeichert': '',
         'maxdim': 1024,
+        'thumbnaildim': 200,
         'useGoogle': False,
         'delta': 5,
         'serverName': "raspberrylan.1qgrvqjevtodmryr.myfritz.net",
@@ -863,6 +870,11 @@ class Locations(MDApp):
              'desc': 'Max Größe der Photos vom LocationsServer oder Goggle Photos',
              'section': 'Locations',
              'key': 'maxdim'},
+            {'type': 'numeric',
+             'title': 'Vorschaubilder Dim',
+             'desc': 'Größe der Vorschaubilder',
+             'section': 'Locations',
+             'key': 'thumbnaildim'},
             {'type': 'bool',
              'title': 'Speichern mit Google',
              'desc': 'On: Gsheets, GPhotos, Off: LocationsServer',
@@ -912,14 +924,13 @@ class Locations(MDApp):
         ])
 
         settings.add_json_panel('Locations', self.config, data=settings_json)
-        print("xxx")
 
     def on_config_change(self, config, section, key, value):
         print(config, section, key, value)
         if section != "Locations":
             return
         if key == "useGoogle":
-            self.useGoogle = value
+            self.useGoogle = bool(int(value))  # value is "0" or "1" !?!
             self.dbinst.deleteAll()
             self.gsheet = None
             self.gphoto = None
@@ -951,9 +962,6 @@ class Locations(MDApp):
         # toast(m, duration=5.0)
         t = Toast(duration=5)
         t.toast(m)
-
-    def xxx(self, *args, **kwargs):
-        pass
 
 
 if __name__ == "__main__":

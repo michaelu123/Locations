@@ -187,13 +187,16 @@ class Daten(Form):
         self.lat, self.lon = mv.lat, mv.lon
         img_tuples = self.dbinst.get_images(self.lat, self.lon)
         imlist = []
+        thumbnaildim = int(self.app.getConfigValue("thumbnaildim", "200"))
         for tuple in img_tuples:  # (image_path, None)  or (mediaId, image_url)
             if tuple[1]:
                 if hasattr(self.app, "gphoto"):
-                    img = self.app.gphoto.getImage(tuple[0], 200)
+                    img = self.app.gphoto.getImage(tuple[0], thumbnaildim)
                 else:
-                    img = self.app.serverIntf.getImage(tuple[0], 200)
-                if img is not None:
+                    img = self.app.serverIntf.getImage(tuple[0], thumbnaildim)
+                if img is None:
+                    self.app.message("Kann Bild nicht laden")
+                else:
                     imlist.append((img, tuple[0]))
             else:
                 imlist.append((utils.getDataDir() + "/images/" + tuple[0], None))

@@ -168,7 +168,8 @@ class ServerIntf:
         req = f"/getimage/{tablename}/{basename}?maxdim={maxdim}"
         resp = self.reqWithRetry("GET", req)
         if resp.status != 200:
-            raise ValueError("Keine Verbindung zum LocationsServer")
+            print("getImage resp", resp.status, resp.reason)
+            return None
         img = resp.read()
         with open(filename, "wb") as f:
             f.write(img)
